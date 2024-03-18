@@ -24,7 +24,7 @@ func handleConnection(conn net.Conn) {
 		panic(err)
 	}
 
-	conn.Write([]byte(respPong))
+	conn.Write([]byte("+PONG\r\n"))
 }
 
 func main() {
