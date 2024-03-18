@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"time"
 )
 
 const respPong = "+PONG\r\n"
@@ -17,6 +18,9 @@ func handleConnection(conn net.Conn) {
 	if err != nil {
 		panic(err)
 	}
+
+	fmt.Println("Processing the request")
+	time.Sleep(3 * time.Second)
 
 	conn.Write([]byte(respPong))
 }
