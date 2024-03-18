@@ -42,7 +42,7 @@ func main() {
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			fmt.Println("Error accepting connection: ", err.Error())
+			fmt.Println("Error accepting connection try again: ", err.Error())
 			os.Exit(1)
 		}
 
