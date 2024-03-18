@@ -13,18 +13,22 @@ const respPong = "+PONG\r\n"
 func handleConnection(conn net.Conn) {
 	defer conn.Close()
 
-	buf := make([]byte, 1024)
-	_, err := conn.Read(buf)
+	buf := make([]byte, 128)
+	for {
+		_, err := conn.Read(buf)
 
-	if errors.Is(err, io.EOF) {
-		return
+		if errors.Is(err, io.EOF) {
+			break
+		}
+
+		if err != nil {
+			fmt.Println("Error reading from connection:", err.Error())
+			return
+		}
+
+		conn.Write([]byte(respPong))
 	}
 
-	if err != nil {
-		panic(err)
-	}
-
-	conn.Write([]byte(respPong))
 }
 
 func main() {
@@ -42,6 +46,6 @@ func main() {
 			os.Exit(1)
 		}
 
-		handleConnection(conn)
+		go handleConnection(conn)
 	}
 }
