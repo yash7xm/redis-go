@@ -1,10 +1,11 @@
 package main
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
-	"time"
 )
 
 const respPong = "+PONG\r\n"
@@ -15,12 +16,13 @@ func handleConnection(conn net.Conn) {
 	buf := make([]byte, 1024)
 	_, err := conn.Read(buf)
 
+	if errors.Is(err, io.EOF) {
+		return
+	}
+
 	if err != nil {
 		panic(err)
 	}
-
-	fmt.Println("Processing the request")
-	time.Sleep(3 * time.Second)
 
 	conn.Write([]byte(respPong))
 }
