@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strconv"
+	"time"
 )
 
 func main() {
@@ -48,7 +50,20 @@ func handleConnection(conn net.Conn, storage *Storage) {
 		case "echo":
 			conn.Write([]byte(fmt.Sprintf("$%d\r\n%s\r\n", len(args[0].String()), args[0].String())))
 		case "set":
-			storage.Set(args[0].String(), args[1].String())
+			if len(args) > 2 {
+				if args[2].String() == "px" {
+					expiryStr := args[3].String()
+					expiryInMilliSecond, err := strconv.Atoi(expiryStr)
+					if err != nil {
+						conn.Write([]byte(fmt.Sprintf("-ERR PX value (%s) is not an integer\r\n", expiryStr)))
+						break
+					}
+
+					storage.SetWithExpiry(args[0].String(), args[1].String(), time.Duration(expiryInMilliSecond)*time.Millisecond)
+				}
+			} else {
+				storage.Set(args[0].String(), args[1].String())
+			}
 			conn.Write([]byte("+OK\r\n"))
 		case "get":
 			value, found := storage.Get(args[0].String())

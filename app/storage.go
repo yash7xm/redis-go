@@ -1,23 +1,54 @@
 package main
 
+import (
+	"time"
+)
+
 type Storage struct {
-	data map[string]Data_Value
+	data map[string]ValueWithExpiry
 }
 
-type Data_Value struct {
-	value string
+type ValueWithExpiry struct {
+	value     string
+	expiresAt time.Time
 }
 
 func NewStorage() *Storage {
 	return &Storage{
-		data: make(map[string]Data_Value),
+		data: make(map[string]ValueWithExpiry),
 	}
 }
 
-func (kv *Storage) Get(Key string) (string, bool) {
-	return kv.data[Key].value, true
+func (v *ValueWithExpiry) IsExpired() bool {
+	if v.expiresAt.IsZero() {
+		return false
+	}
+
+	return v.expiresAt.Before(time.Now())
+}
+
+func (kv *Storage) Get(key string) (string, bool) {
+	valueWithExpiry, ok := kv.data[key]
+
+	if !ok {
+		return "", false
+	}
+
+	if valueWithExpiry.IsExpired() {
+		delete(kv.data, key)
+		return "", false
+	}
+
+	return valueWithExpiry.value, true
 }
 
 func (kv *Storage) Set(key string, value string) {
-	kv.data[key] = Data_Value{value: value}
+	kv.data[key] = ValueWithExpiry{value: value}
+}
+
+func (kv *Storage) SetWithExpiry(key string, value string, expiry time.Duration) {
+	kv.data[key] = ValueWithExpiry{
+		value:     value,
+		expiresAt: time.Now().Add(expiry),
+	}
 }
