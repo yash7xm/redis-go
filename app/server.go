@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"flag"
 	"fmt"
 	"net"
 	"os"
@@ -11,22 +10,60 @@ import (
 )
 
 func main() {
-	port := flag.String("port", "6379", "port for server")
-	flag.Parse()
+	args := os.Args[1:]
+	fmt.Println(args)
 
-	srv := NewServer()
-	srv.Run(*port)
+	var replicaOfHost string
+	var replicaOfPort string
+	port := "6379"
+
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--replicaof":
+			if i+2 < len(args) {
+				replicaOfHost = args[i+1]
+				replicaOfPort = args[i+2]
+			}
+		case "--port":
+			if i+1 < len(args) {
+				port = args[i+1]
+			}
+		}
+	}
+
+	role := MasterRole
+
+	if replicaOfHost != "" {
+		role = SlaveRole
+	}
+
+	srv := NewServer(role, replicaOfHost, replicaOfPort)
+	srv.Run(port)
+
 }
+
+const (
+	MasterRole Role = "master"
+	SlaveRole  Role = "slave"
+)
+
+type Role string
 
 type Server struct {
-	storage *Storage
+	storage       *Storage
+	role          Role
+	replicaOfHost string
+	replicaOfPort string
 }
 
-func NewServer() *Server {
+func NewServer(role Role, replicaOfHost string, replicaOfPort string) *Server {
 	servStorage := NewStorage()
 
 	return &Server{
-		storage: servStorage,
+		storage:       servStorage,
+		role:          role,
+		replicaOfHost: replicaOfHost,
+		replicaOfPort: replicaOfPort,
 	}
 }
 
@@ -47,12 +84,12 @@ func (s *Server) Run(port string) {
 			os.Exit(1)
 		}
 
-		go handleConnection(conn, storage)
+		go handleConnection(conn, storage, s.role)
 	}
 
 }
 
-func handleConnection(conn net.Conn, storage *Storage) {
+func handleConnection(conn net.Conn, storage *Storage, role Role) {
 	defer conn.Close()
 	for {
 		value, err := DecodeRESP(bufio.NewReader(conn))
@@ -93,8 +130,8 @@ func handleConnection(conn net.Conn, storage *Storage) {
 			} else {
 				conn.Write([]byte("$-1\r\n"))
 			}
-		case "info": 
-			conn.Write([]byte("$11\r\nrole:master\r\n"))
+		case "info":
+			conn.Write([]byte(fmt.Sprintf("$%d\r\nrole:%s\r\n", len(role)+5, role)))
 		default:
 			conn.Write([]byte("-ERR unknown command '" + command + "'\r\n"))
 		}
