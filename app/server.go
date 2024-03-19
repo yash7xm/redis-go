@@ -93,6 +93,8 @@ func handleConnection(conn net.Conn, storage *Storage) {
 			} else {
 				conn.Write([]byte("$-1\r\n"))
 			}
+		case "info": 
+			conn.Write([]byte("$11\r\nrole:master\r\n"))
 		default:
 			conn.Write([]byte("-ERR unknown command '" + command + "'\r\n"))
 		}
