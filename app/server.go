@@ -1,35 +1,11 @@
 package main
 
 import (
-	"errors"
+	"bufio"
 	"fmt"
-	"io"
 	"net"
 	"os"
 )
-
-const respPong = "+PONG\r\n"
-
-func handleConnection(conn net.Conn) {
-	defer conn.Close()
-
-	buf := make([]byte, 128)
-	for {
-		_, err := conn.Read(buf)
-
-		if errors.Is(err, io.EOF) {
-			break
-		}
-
-		if err != nil {
-			fmt.Println("Error reading from connection:", err.Error())
-			return
-		}
-
-		conn.Write([]byte(respPong))
-	}
-
-}
 
 func main() {
 	fmt.Println("Logs from your program will appear here!")
@@ -47,5 +23,29 @@ func main() {
 		}
 
 		go handleConnection(conn)
+	}
+}
+
+func handleConnection(conn net.Conn) {
+	defer conn.Close()
+	for {
+		value, err := DecodeRESP(bufio.NewReader(conn))
+
+		if err != nil {
+			fmt.Println("Error decoding RESP: ", err.Error())
+			return // Ignore clients that we fail to read from
+		}
+
+		command := value.Array()[0].String()
+		args := value.Array()[1:]
+
+		switch command {
+		case "ping":
+			conn.Write([]byte("+PONG\r\n"))
+		case "echo":
+			conn.Write([]byte(fmt.Sprintf("$%d\r\n%s\r\n", len(args[0].String()), args[0].String())))
+		default:
+			conn.Write([]byte("-ERR unknown command '" + command + "'\r\n"))
+		}
 	}
 }
