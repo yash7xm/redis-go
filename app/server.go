@@ -7,6 +7,20 @@ import (
 	"os"
 )
 
+const (
+	MasterRole Role = "master"
+	SlaveRole  Role = "slave"
+)
+
+type Role string
+
+type Server struct {
+	storage       *Storage
+	role          Role
+	replicaOfHost string
+	replicaOfPort string
+}
+
 func main() {
 	args := os.Args[1:]
 	fmt.Println(args)
@@ -32,26 +46,13 @@ func main() {
 	role := MasterRole
 
 	if replicaOfHost != "" {
+		connectToMaster(replicaOfHost, replicaOfPort)
 		role = SlaveRole
 	}
 
 	srv := NewServer(role, replicaOfHost, replicaOfPort)
 	srv.Run(port)
 
-}
-
-const (
-	MasterRole Role = "master"
-	SlaveRole  Role = "slave"
-)
-
-type Role string
-
-type Server struct {
-	storage       *Storage
-	role          Role
-	replicaOfHost string
-	replicaOfPort string
 }
 
 func NewServer(role Role, replicaOfHost string, replicaOfPort string) *Server {
@@ -99,4 +100,14 @@ func handleConnection(conn net.Conn, storage *Storage, s *Server) {
 
 		HandleCommands(value, conn, storage, s)
 	}
+}
+
+func connectToMaster(replicaOfHost string, replicaOfPort string) {
+	masterConn, err := net.Dial("tcp", fmt.Sprintf("%s:%s", replicaOfHost, replicaOfPort))
+	if err != nil {
+		fmt.Println("Not able to connect to master", err)
+		os.Exit(1)
+	}
+	masterConn.Write([]byte(GenBulkArray([]string{"PING"})))
+	defer masterConn.Close()
 }
