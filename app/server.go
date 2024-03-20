@@ -46,7 +46,6 @@ func main() {
 	role := MasterRole
 
 	if replicaOfHost != "" {
-		connectToMaster(replicaOfHost, replicaOfPort)
 		role = SlaveRole
 	}
 
@@ -84,6 +83,10 @@ func (s *Server) Run(port string) {
 		}
 
 		go handleConnection(conn, storage, s)
+
+		if s.role == SlaveRole {
+			go handleHandShake(s.replicaOfHost, s.replicaOfPort)
+		}
 	}
 
 }
@@ -100,30 +103,4 @@ func handleConnection(conn net.Conn, storage *Storage, s *Server) {
 
 		HandleCommands(value, conn, storage, s)
 	}
-}
-
-func connectToMaster(replicaOfHost string, replicaOfPort string) {
-	masterConn, err := net.Dial("tcp", fmt.Sprintf("%s:%s", replicaOfHost, replicaOfPort))
-	if err != nil {
-		fmt.Println("Not able to connect to master", err)
-		os.Exit(1)
-	}
-	// sending ping to master
-	masterConn.Write([]byte(GenBulkArray([]string{"PING"})))
-
-	// sending first replconf to master
-	_, err = masterConn.Write([]byte("*3\r\n$8\r\nREPLCONF\r\n$14\r\nlistening-port\r\n$4\r\n6380\r\n"))
-
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	// sending second replconf to master
-	_, err = masterConn.Write([]byte("*3\r\n$8\r\nREPLCONF\r\n$4\r\ncapa\r\n$6\r\npsync2\r\n"))
-
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	defer masterConn.Close()
 }
