@@ -116,6 +116,6 @@ func connectToMaster(replicaOfHost string, replicaOfPort string) {
 
 	// sending second replconf to master
 	masterConn.Write([]byte("*3\r\n$8\r\nREPLCONF\r\n$4\r\ncapa\r\n$6\r\npsync2\r\n"))
-	
+
 	defer masterConn.Close()
 }
