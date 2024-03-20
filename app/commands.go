@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"fmt"
 	"net"
 	"strconv"
@@ -71,6 +72,21 @@ func HandlePsyncCommand(conn net.Conn) {
 
 	output := fmt.Sprintf("+FULLRESYNC %s %d\r\n", replId, replOffset)
 	conn.Write([]byte(output))
+
+	sendRdbContent(conn)
+}
+
+func sendRdbContent(conn net.Conn) {
+	emptyRDBFileBase64 := "UkVESVMwMDEx+glyZWRpcy12ZXIFNy4yLjD6CnJlZGlzLWJpdHPAQPoFY3RpbWXCbQi8ZfoIdXNlZC1tZW3CsMQQAPoIYW9mLWJhc2XAAP/wbjv+wP9aog=="
+	decodedBytes, err := base64.StdEncoding.DecodeString(emptyRDBFileBase64)
+
+	if err != nil {
+		fmt.Println("Error while sendig RDB file", err)
+		return
+	}
+
+	output := RDBFileContent(decodedBytes)
+	conn.Write(output)
 }
 
 func HandleCommands(value Value, conn net.Conn, storage *Storage, s *Server) {

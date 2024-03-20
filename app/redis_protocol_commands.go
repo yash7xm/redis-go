@@ -1,6 +1,9 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"strconv"
+)
 
 func GenSimpleString(data string) string {
 	return fmt.Sprintf("+%s\r\n", data)
@@ -21,4 +24,8 @@ func createBulkString(input []string) string {
 	}
 
 	return fmt.Sprintf("$%d\r\n%s", len(result)-2, result)
+}
+
+func RDBFileContent(message []byte) []byte {
+	return []byte(fmt.Sprintf("$%s\r\n%s", strconv.Itoa(len(message)), message))
 }
