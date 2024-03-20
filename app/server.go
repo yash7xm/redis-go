@@ -108,6 +108,14 @@ func connectToMaster(replicaOfHost string, replicaOfPort string) {
 		fmt.Println("Not able to connect to master", err)
 		os.Exit(1)
 	}
+	// sending ping to master
 	masterConn.Write([]byte(GenBulkArray([]string{"PING"})))
+
+	// sending first replconf to master
+	masterConn.Write([]byte("*3\r\n$8\r\nREPLCONF\r\n$14\r\nlistening-port\r\n$4\r\n6380\r\n"))
+
+	// sending second replconf to master
+	masterConn.Write([]byte("*3\r\n$8\r\nREPLCONF\r\n$4\r\ncapa\r\n$6\r\npsync2\r\n"))
+	
 	defer masterConn.Close()
 }
