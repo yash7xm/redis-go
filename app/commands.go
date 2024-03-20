@@ -65,6 +65,14 @@ func HandleReplconfCommand(conn net.Conn) {
 	conn.Write([]byte(output))
 }
 
+func HandlePsyncCommand(conn net.Conn) {
+	replId := "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb"
+	replOffset := 0
+
+	output := fmt.Sprintf("+FULLRESYNC %s %d\r\n", replId, replOffset)
+	conn.Write([]byte(output))
+}
+
 func HandleCommands(value Value, conn net.Conn, storage *Storage, s *Server) {
 	command := strings.ToLower(value.Array()[0].String())
 	args := value.Array()[1:]
@@ -82,6 +90,8 @@ func HandleCommands(value Value, conn net.Conn, storage *Storage, s *Server) {
 		HandleInfoCommand(conn, s.role)
 	case "replconf":
 		HandleReplconfCommand(conn)
+	case "psync":
+		HandlePsyncCommand(conn)
 	default:
 		conn.Write([]byte("-ERR unknown command '" + command + "'\r\n"))
 	}
