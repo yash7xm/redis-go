@@ -43,4 +43,14 @@ func sendReplConf(masterConn net.Conn) {
 		fmt.Println(err)
 		return
 	}
+
+	sendPsyncToMaster(masterConn)
+}
+
+func sendPsyncToMaster(masterConn net.Conn) {
+	_, err := masterConn.Write([]byte("*3\r\n$5\r\nPSYNC\r\n$1\r\n?\r\n$2\r\n-1\r\n"))
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 }
