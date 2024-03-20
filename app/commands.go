@@ -20,6 +20,10 @@ func HandleEchoCommand(conn net.Conn, value string) {
 }
 
 func HandleSetCommand(conn net.Conn, args []Value, storage *Storage) {
+	if isSlaveConnected {
+		fmt.Println("is slave")
+		conn.Write([]byte("sending write to slave"))
+	}
 	if len(args) > 2 {
 		if args[2].String() == "px" {
 			expiryStr := args[3].String()
@@ -86,7 +90,16 @@ func sendRdbContent(conn net.Conn) {
 	}
 
 	output := RDBFileContent(decodedBytes)
-	conn.Write(output)
+	res, err := conn.Write(output)
+
+	if err != nil {
+		fmt.Println("Not able to send the RDB file", err)
+		return
+	}
+
+	if res > 0 {
+		isSlaveConnected = true
+	}
 }
 
 func HandleCommands(value Value, conn net.Conn, storage *Storage, s *Server) {

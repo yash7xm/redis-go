@@ -12,6 +12,10 @@ const (
 	SlaveRole  Role = "slave"
 )
 
+var (
+	isSlaveConnected bool = true
+)
+
 type Role string
 
 type Server struct {
@@ -45,12 +49,15 @@ func main() {
 	role := MasterRole
 
 	if replicaOfHost != "" {
-		handleHandShake(replicaOfHost, replicaOfPort)
 		role = SlaveRole
 	}
 
 	srv := NewServer(role, replicaOfHost, replicaOfPort)
-	srv.Run(port)
+	if role == MasterRole {
+		srv.RunMasterServer(port)
+	} else {
+		srv.RunSlaveServer(port)
+	}
 
 }
 
@@ -65,18 +72,44 @@ func NewServer(role Role, replicaOfHost string, replicaOfPort string) *Server {
 	}
 }
 
-func (s *Server) Run(port string) {
+func (s *Server) RunSlaveServer(port string) {
+	listener, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%s", port))
+	fmt.Printf("Replica server started on %s\n", port)
+	if err != nil {
+		fmt.Println("Failed to bind to port 6379")
+		os.Exit(1)
+	}
+
+	masterConn, err := net.Dial("tcp", fmt.Sprintf("%s:%s", s.replicaOfHost, s.replicaOfPort))
+	fmt.Printf("Connected to master on %s:%s\n", s.replicaOfHost, s.replicaOfPort)
+	if err != nil {
+		fmt.Println("Failed to bind to port 6379")
+		os.Exit(1)
+	}
+
+	handleHandShake(masterConn)
+
+	storage := NewStorage()
+
+	for {
+		conn, err := listener.Accept()
+		if err != nil {
+			fmt.Println("Error accepting connection try again: ", err.Error())
+			os.Exit(1)
+		}
+
+		go handleConnection(conn, storage, s)
+	}
+}
+
+func (s *Server) RunMasterServer(port string) {
 	listener, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%s", port))
 	fmt.Printf("Server started on %s\n", port)
 	if err != nil {
 		fmt.Println("Failed to bind to port 6379")
 		os.Exit(1)
 	}
-
-	if s.role == SlaveRole {
-		handleHandShake(s.replicaOfHost, s.replicaOfPort)
-	}
-
+	
 	storage := NewStorage()
 
 	for {

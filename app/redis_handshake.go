@@ -3,20 +3,10 @@ package main
 import (
 	"fmt"
 	"net"
-	"time"
 )
 
-func handleHandShake(replicaOfHost string, replicaOfPort string) {
-	for {
-		masterConn, err := net.Dial("tcp", fmt.Sprintf("%s:%s", replicaOfHost, replicaOfPort))
-		if err != nil {
-			fmt.Println("Not able to connect to master:", err)
-			time.Sleep(time.Second * 2) // Initial wait of 2 seconds
-			continue
-		}
-		sendPingToMaster(masterConn)
-		break // Exit the loop on successful connection
-	}
+func handleHandShake(masterConn net.Conn) {
+	sendPingToMaster(masterConn)
 }
 
 func sendPingToMaster(masterConn net.Conn) {
