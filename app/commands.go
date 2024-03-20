@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -65,7 +66,7 @@ func HandleReplconfCommand(conn net.Conn) {
 }
 
 func HandleCommands(value Value, conn net.Conn, storage *Storage, s *Server) {
-	command := value.Array()[0].String()
+	command := strings.ToLower(value.Array()[0].String())
 	args := value.Array()[1:]
 
 	switch command {
