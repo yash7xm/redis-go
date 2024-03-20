@@ -59,6 +59,11 @@ func HandleInfoCommand(conn net.Conn, role Role) {
 	}
 }
 
+func HandleReplconfCommand(conn net.Conn) {
+	output := GenSimpleString("OK")
+	conn.Write([]byte(output))
+}
+
 func HandleCommands(value Value, conn net.Conn, storage *Storage, s *Server) {
 	command := value.Array()[0].String()
 	args := value.Array()[1:]
@@ -74,6 +79,8 @@ func HandleCommands(value Value, conn net.Conn, storage *Storage, s *Server) {
 		HandleGetCommand(conn, args[0].String(), storage)
 	case "info":
 		HandleInfoCommand(conn, s.role)
+	case "replconf":
+		HandleReplconfCommand(conn)
 	default:
 		conn.Write([]byte("-ERR unknown command '" + command + "'\r\n"))
 	}

@@ -23,7 +23,6 @@ type Server struct {
 
 func main() {
 	args := os.Args[1:]
-	fmt.Println(args)
 
 	var replicaOfHost string
 	var replicaOfPort string
@@ -46,6 +45,7 @@ func main() {
 	role := MasterRole
 
 	if replicaOfHost != "" {
+		handleHandShake(replicaOfHost, replicaOfPort)
 		role = SlaveRole
 	}
 
@@ -73,6 +73,10 @@ func (s *Server) Run(port string) {
 		os.Exit(1)
 	}
 
+	if s.role == SlaveRole {
+		handleHandShake(s.replicaOfHost, s.replicaOfPort)
+	}
+
 	storage := NewStorage()
 
 	for {
@@ -83,12 +87,7 @@ func (s *Server) Run(port string) {
 		}
 
 		go handleConnection(conn, storage, s)
-
-		if s.role == SlaveRole {
-			go handleHandShake(s.replicaOfHost, s.replicaOfPort)
-		}
 	}
-
 }
 
 func handleConnection(conn net.Conn, storage *Storage, s *Server) {
