@@ -12,17 +12,17 @@ const (
 	SlaveRole  Role = "slave"
 )
 
-var (
-	isSlaveConnected bool = true
-)
+// var connectedReplicas []*net.Conn
+// var replicasMutex sync.Mutex
 
 type Role string
 
 type Server struct {
-	storage       *Storage
-	role          Role
-	replicaOfHost string
-	replicaOfPort string
+	storage           *Storage
+	role              Role
+	replicaOfHost     string
+	replicaOfPort     string
+	connectedReplicas []*net.Conn
 }
 
 func main() {
@@ -53,11 +53,7 @@ func main() {
 	}
 
 	srv := NewServer(role, replicaOfHost, replicaOfPort)
-	if role == MasterRole {
-		srv.RunMasterServer(port)
-	} else {
-		srv.RunSlaveServer(port)
-	}
+	srv.Run(port)
 
 }
 
@@ -72,7 +68,7 @@ func NewServer(role Role, replicaOfHost string, replicaOfPort string) *Server {
 	}
 }
 
-func (s *Server) RunSlaveServer(port string) {
+func (s *Server) Run(port string) {
 	listener, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%s", port))
 	fmt.Printf("Replica server started on %s\n", port)
 	if err != nil {
@@ -80,14 +76,16 @@ func (s *Server) RunSlaveServer(port string) {
 		os.Exit(1)
 	}
 
-	masterConn, err := net.Dial("tcp", fmt.Sprintf("%s:%s", s.replicaOfHost, s.replicaOfPort))
-	fmt.Printf("Connected to master on %s:%s\n", s.replicaOfHost, s.replicaOfPort)
-	if err != nil {
-		fmt.Println("Failed to bind to port 6379")
-		os.Exit(1)
-	}
+	if s.role == SlaveRole {
+		masterConn, err := net.Dial("tcp", fmt.Sprintf("%s:%s", s.replicaOfHost, s.replicaOfPort))
+		fmt.Printf("Connected to master on %s:%s\n", s.replicaOfHost, s.replicaOfPort)
+		if err != nil {
+			fmt.Println("Failed to bind to port 6379")
+			os.Exit(1)
+		}
 
-	handleHandShake(masterConn)
+		handleHandShake(masterConn)
+	}
 
 	storage := NewStorage()
 
@@ -109,7 +107,7 @@ func (s *Server) RunMasterServer(port string) {
 		fmt.Println("Failed to bind to port 6379")
 		os.Exit(1)
 	}
-	
+
 	storage := NewStorage()
 
 	for {

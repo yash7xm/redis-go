@@ -19,10 +19,9 @@ func HandleEchoCommand(conn net.Conn, value string) {
 	conn.Write([]byte(output))
 }
 
-func HandleSetCommand(conn net.Conn, args []Value, storage *Storage) {
-	if isSlaveConnected {
-		fmt.Println("is slave")
-		conn.Write([]byte("sending write to slave"))
+func HandleSetCommand(conn net.Conn, args []Value, storage *Storage, s *Server) {
+	if s.role == MasterRole {
+		sendToAllTheReplicas(args, s)
 	}
 	if len(args) > 2 {
 		if args[2].String() == "px" {
@@ -65,9 +64,12 @@ func HandleInfoCommand(conn net.Conn, role Role) {
 	}
 }
 
-func HandleReplconfCommand(conn net.Conn) {
+func HandleReplconfCommand(conn net.Conn, s *Server) {
 	output := GenSimpleString("OK")
 	conn.Write([]byte(output))
+
+	s.connectedReplicas = append(s.connectedReplicas, &conn)
+	fmt.Println(conn)
 }
 
 func HandlePsyncCommand(conn net.Conn) {
@@ -90,15 +92,20 @@ func sendRdbContent(conn net.Conn) {
 	}
 
 	output := RDBFileContent(decodedBytes)
-	res, err := conn.Write(output)
+	_, err = conn.Write(output)
 
 	if err != nil {
 		fmt.Println("Not able to send the RDB file", err)
 		return
 	}
+}
 
-	if res > 0 {
-		isSlaveConnected = true
+func sendToAllTheReplicas(args []Value, s *Server) {
+	fmt.Println("Connected Replicas:- ", s.connectedReplicas)
+	for _, conn := range s.connectedReplicas {
+		fmt.Println(args)
+		output := GenBulkString(args[0].String())
+		(*conn).Write([]byte(output))
 	}
 }
 
@@ -106,19 +113,21 @@ func HandleCommands(value Value, conn net.Conn, storage *Storage, s *Server) {
 	command := strings.ToLower(value.Array()[0].String())
 	args := value.Array()[1:]
 
+	fmt.Println(s.connectedReplicas)
+
 	switch command {
 	case "ping":
 		HandlePingCommand(conn)
 	case "echo":
 		HandleEchoCommand(conn, args[0].String())
 	case "set":
-		HandleSetCommand(conn, args, storage)
+		HandleSetCommand(conn, args, storage, s)
 	case "get":
 		HandleGetCommand(conn, args[0].String(), storage)
 	case "info":
 		HandleInfoCommand(conn, s.role)
 	case "replconf":
-		HandleReplconfCommand(conn)
+		HandleReplconfCommand(conn, s)
 	case "psync":
 		HandlePsyncCommand(conn)
 	default:
