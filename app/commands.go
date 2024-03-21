@@ -104,7 +104,11 @@ func sendToAllTheReplicas(args []Value, s *Server) {
 	fmt.Println("Connected Replicas:- ", s.connectedReplicas)
 	for _, conn := range s.connectedReplicas {
 		fmt.Println(args)
-		output := GenBulkString(args[0].String())
+		var arr []string
+		for _, arg := range args {
+			arr = append(arr, arg.String())
+		}
+		output := GenBulkArray(arr)
 		(*conn).Write([]byte(output))
 	}
 }
