@@ -102,7 +102,6 @@ func sendRdbContent(conn net.Conn) {
 }
 
 func sendToAllTheReplicas(args []Value, s *Server) {
-	time.Sleep(time.Second * 3)
 	for _, conn := range s.connectedReplicas {
 		output := SerializeArray(
 			SerializeBulkString("SET"),
