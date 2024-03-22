@@ -104,7 +104,6 @@ func sendRdbContent(conn net.Conn) {
 func sendToAllTheReplicas(args []Value, s *Server) {
 	fmt.Println("Connected Replicas:- ", s.connectedReplicas)
 	for _, conn := range s.connectedReplicas {
-		fmt.Println(args)
 		output := SerializeArray(
 			SerializeBulkString("SET"),
 			SerializeBulkString(args[0].String()),
