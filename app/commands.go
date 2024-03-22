@@ -76,12 +76,13 @@ func HandlePsyncCommand(conn net.Conn, s *Server) {
 
 	output := fmt.Sprintf("+FULLRESYNC %s %d\r\n", replId, replOffset)
 	conn.Write([]byte(output))
+	sendRdbContent(conn)
 
 	s.connectedReplicas = append(s.connectedReplicas, &conn)
 
 	fmt.Println("From Psync Command Connected Replicas are ", s.connectedReplicas)
 
-	sendRdbContent(conn)
+
 }
 
 func sendRdbContent(conn net.Conn) {
@@ -117,8 +118,6 @@ func sendToAllTheReplicas(args []Value, s *Server) {
 func HandleCommands(value Value, conn net.Conn, storage *Storage, s *Server) {
 	command := strings.ToLower(value.Array()[0].String())
 	args := value.Array()[1:]
-
-	fmt.Println(s.connectedReplicas)
 
 	switch command {
 	case "ping":
