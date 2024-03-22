@@ -37,20 +37,12 @@ func HandleSetCommand(conn net.Conn, args []Value, storage *Storage, s *Server) 
 		storage.Set(args[0].String(), args[1].String())
 	}
 
-	replicaChan := make(chan struct{}, len(s.connectedReplicas))
-	var wg sync.WaitGroup
-	wg.Add(len(s.connectedReplicas))
-
 	for _, replicaConn := range s.connectedReplicas {
 		go func(conn net.Conn) {
-			defer wg.Done()
-			defer close(replicaChan) // Defer closing until goroutine finishes
 			propagateSetToReplica(conn, args)
 		}(*replicaConn)
 	}
 
-	wg.Wait()          // Wait for all goroutines to finish
-	close(replicaChan) // Now it's safe to close the channel
 	conn.Write([]byte("+OK\r\n"))
 }
 
