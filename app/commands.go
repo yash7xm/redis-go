@@ -6,7 +6,6 @@ import (
 	"net"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -21,7 +20,6 @@ func HandleEchoCommand(conn net.Conn, value string) {
 }
 
 func HandleSetCommand(conn net.Conn, args []Value, storage *Storage, s *Server) {
-	fmt.Println("From set command", args)
 	if len(args) > 2 {
 		if args[2].String() == "px" {
 			expiryStr := args[3].String()
@@ -37,14 +35,8 @@ func HandleSetCommand(conn net.Conn, args []Value, storage *Storage, s *Server) 
 		storage.Set(args[0].String(), args[1].String())
 	}
 
-	replicaChan := make(chan struct{}, len(s.connectedReplicas))
-	var wg sync.WaitGroup
-	wg.Add(len(s.connectedReplicas))
-
 	for _, replicaConn := range s.connectedReplicas {
 		go func(conn net.Conn) {
-			defer wg.Done()
-			defer close(replicaChan)
 
 			err := propagateSetToReplica(conn, args)
 			if err != nil {
@@ -52,9 +44,6 @@ func HandleSetCommand(conn net.Conn, args []Value, storage *Storage, s *Server) 
 			}
 		}(*replicaConn)
 	}
-
-	wg.Wait()
-	close(replicaChan)
 	conn.Write([]byte("+OK\r\n"))
 }
 
@@ -95,7 +84,9 @@ func HandlePsyncCommand(conn net.Conn, s *Server) {
 	conn.Write([]byte(output))
 	sendRdbContent(conn)
 
+	s.replicaMutex.Lock()
 	s.connectedReplicas = append(s.connectedReplicas, &conn)
+	s.replicaMutex.Unlock()
 
 	fmt.Println("From Psync Command Connected Replicas are ", s.connectedReplicas)
 

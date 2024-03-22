@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"sync"
 )
 
 const (
@@ -20,6 +21,7 @@ type Server struct {
 	replicaOfHost     string
 	replicaOfPort     string
 	connectedReplicas []*net.Conn
+	replicaMutex      sync.Mutex
 }
 
 func main() {
