@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"strconv"
+	"strings"
 )
 
 func GenSimpleString(data string) string {
@@ -23,9 +24,25 @@ func createBulkString(input []string) string {
 		result = fmt.Sprintf("%s%s\r\n", result, item)
 	}
 
-	fmt.Println("Result is :-", result[:len(result)-1])
+	return fmt.Sprintf("$%d\r\n%s", len(result)-2, result)
+}
 
-	return fmt.Sprintf("$%d\r\n%s", len(result)-2, result[:len(result)-1])
+func SerializeBulkString(s string) string {
+	v := fmt.Sprintf("$%d\r\n%s\r\n", len(s), s)
+	return v
+}
+
+func SerializeNullBulkString() string {
+	return "$-1\r\n"
+}
+
+func SerializeArray(elements ...string) string {
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("*%d\r\n", len(elements)))
+	for _, str := range elements {
+		sb.WriteString(str)
+	}
+	return sb.String()
 }
 
 func RDBFileContent(message []byte) []byte {

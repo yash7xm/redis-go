@@ -64,20 +64,21 @@ func HandleInfoCommand(conn net.Conn, role Role) {
 	}
 }
 
-func HandleReplconfCommand(conn net.Conn, s *Server) {
+func HandleReplconfCommand(conn net.Conn) {
 	output := GenSimpleString("OK")
 	conn.Write([]byte(output))
 
-	s.connectedReplicas = append(s.connectedReplicas, &conn)
 	fmt.Println(conn)
 }
 
-func HandlePsyncCommand(conn net.Conn) {
+func HandlePsyncCommand(conn net.Conn, s *Server) {
 	replId := "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb"
 	replOffset := 0
 
 	output := fmt.Sprintf("+FULLRESYNC %s %d\r\n", replId, replOffset)
 	conn.Write([]byte(output))
+
+	s.connectedReplicas = append(s.connectedReplicas, &conn)
 
 	sendRdbContent(conn)
 }
@@ -104,12 +105,11 @@ func sendToAllTheReplicas(args []Value, s *Server) {
 	fmt.Println("Connected Replicas:- ", s.connectedReplicas)
 	for _, conn := range s.connectedReplicas {
 		fmt.Println(args)
-		var arr []string
-		arr = append(arr, "set")
-		for _, arg := range args {
-			arr = append(arr, arg.String())
-		}
-		output := GenBulkArray(arr)
+		output := SerializeArray(
+			SerializeBulkString("SET"),
+			SerializeBulkString(args[0].String()),
+			SerializeBulkString(args[1].String()),
+		)
 		fmt.Println("output of set command is :- ", output)
 		(*conn).Write([]byte(output))
 	}
@@ -133,9 +133,9 @@ func HandleCommands(value Value, conn net.Conn, storage *Storage, s *Server) {
 	case "info":
 		HandleInfoCommand(conn, s.role)
 	case "replconf":
-		HandleReplconfCommand(conn, s)
+		HandleReplconfCommand(conn)
 	case "psync":
-		HandlePsyncCommand(conn)
+		HandlePsyncCommand(conn, s)
 	default:
 		conn.Write([]byte("-ERR unknown command '" + command + "'\r\n"))
 	}
