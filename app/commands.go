@@ -20,9 +20,6 @@ func HandleEchoCommand(conn net.Conn, value string) {
 }
 
 func HandleSetCommand(conn net.Conn, args []Value, storage *Storage, s *Server) {
-	if s.role == MasterRole {
-		sendToAllTheReplicas(args, s)
-	}
 	fmt.Println("From set command", args)
 	if len(args) > 2 {
 		if args[2].String() == "px" {
@@ -37,6 +34,16 @@ func HandleSetCommand(conn net.Conn, args []Value, storage *Storage, s *Server) 
 		}
 	} else {
 		storage.Set(args[0].String(), args[1].String())
+	}
+
+	replicaChan := make(chan struct{}, len(s.connectedReplicas))
+
+	for _, replicConn := range s.connectedReplicas {
+		go func(conn net.Conn) {
+			defer close(replicaChan)
+			replicaChan <- struct{}{}
+			propagateSetToReplica(conn, args)
+		}(*replicConn)
 	}
 	conn.Write([]byte("+OK\r\n"))
 }
@@ -82,7 +89,6 @@ func HandlePsyncCommand(conn net.Conn, s *Server) {
 
 	fmt.Println("From Psync Command Connected Replicas are ", s.connectedReplicas)
 
-
 }
 
 func sendRdbContent(conn net.Conn) {
@@ -103,16 +109,14 @@ func sendRdbContent(conn net.Conn) {
 	}
 }
 
-func sendToAllTheReplicas(args []Value, s *Server) {
-	for _, conn := range s.connectedReplicas {
-		output := SerializeArray(
-			SerializeBulkString("SET"),
-			SerializeBulkString(args[0].String()),
-			SerializeBulkString(args[1].String()),
-		)
-		fmt.Println("Set Output", output)
-		(*conn).Write([]byte(output))
-	}
+func propagateSetToReplica(conn net.Conn, args []Value) {
+	output := SerializeArray(
+		SerializeBulkString("SET"),
+		SerializeBulkString(args[0].String()),
+		SerializeBulkString(args[1].String()),
+	)
+	fmt.Println("Set Output", output)
+	(conn).Write([]byte(output))
 }
 
 func HandleCommands(value Value, conn net.Conn, storage *Storage, s *Server) {
