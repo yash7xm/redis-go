@@ -3,9 +3,16 @@ package main
 import (
 	"fmt"
 	"net"
+	"os"
 )
 
-func handleHandShake(masterConn net.Conn) {
+func handleHandShake(s *Server) {
+	masterConn, err := net.Dial("tcp", fmt.Sprintf("%s:%s", s.replicaOfHost, s.replicaOfPort))
+	fmt.Printf("Connected to master on %s:%s\n", s.replicaOfHost, s.replicaOfPort)
+	if err != nil {
+		fmt.Println("Failed to bind to port 6379")
+		os.Exit(1)
+	}
 	sendPingToMaster(masterConn)
 }
 
