@@ -6,7 +6,6 @@ import (
 	"net"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -21,7 +20,6 @@ func HandleEchoCommand(conn net.Conn, value string) {
 }
 
 func HandleSetCommand(conn net.Conn, args []Value, s *Server) {
-	fmt.Println("Args:-", args)
 	if len(args) > 2 {
 		if args[2].String() == "px" {
 			expiryStr := args[3].String()
@@ -37,24 +35,9 @@ func HandleSetCommand(conn net.Conn, args []Value, s *Server) {
 		s.storage.Set(args[0].String(), args[1].String())
 	}
 
-	var wg sync.WaitGroup
-	s.replicaMutex.Lock()
-	for _, replicaConn := range s.connectedReplicas {
-		wg.Add(1)
-		fmt.Println("Connected Replicas from set:- ", s.connectedReplicas)
-		go func(conn net.Conn) {
-			defer wg.Done()
-			fmt.Println("Inside set loop")
-			err := propagateSetToReplica(conn, args)
-			if err != nil {
-				fmt.Println("Error sending SET to replica:", conn.RemoteAddr(), err)
-			}
-		}(*replicaConn)
+	if s.role == MasterRole {
+		s.commandQueue <- args
 	}
-	s.replicaMutex.Unlock()
-
-	// Wait for all replicas to acknowledge the SET command
-	wg.Wait()
 
 	conn.Write([]byte("+OK\r\n"))
 }
@@ -123,19 +106,25 @@ func sendRdbContent(conn net.Conn) {
 	}
 }
 
-func propagateSetToReplica(conn net.Conn, args []Value) error {
-	command := SerializeArray(
-		SerializeBulkString("SET"),
-		SerializeBulkString(args[0].String()),
-		SerializeBulkString(args[1].String()),
-	)
-	_, err := conn.Write([]byte(command))
-	if err != nil {
-		fmt.Println("Error propagating SET to replica:", err)
-		return err
-	}
-	return nil
-}
+// func propagateSetToReplica(s *Server, args []Value) {
+
+// 	s.replicaMutex.Lock()
+//     defer s.replicaMutex.Unlock()
+
+// 	for _, conn := range s.connectedReplicas {
+// 		command := SerializeArray(
+// 			SerializeBulkString("SET"),
+// 			SerializeBulkString(args[0].String()),
+// 			SerializeBulkString(args[1].String()),
+// 		)
+// 		_, err := (*conn).Write([]byte(command))
+// 		if err != nil {
+// 			fmt.Println("Error propagating SET to replica:", err)
+// 			break
+// 		}
+// 	}
+
+// }
 
 func HandleCommands(value Value, conn net.Conn, s *Server) {
 	command := strings.ToLower(value.Array()[0].String())
