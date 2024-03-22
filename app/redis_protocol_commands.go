@@ -23,7 +23,9 @@ func createBulkString(input []string) string {
 		result = fmt.Sprintf("%s%s\r\n", result, item)
 	}
 
-	return fmt.Sprintf("$%d\r\n%s", len(result)-2, result)
+	fmt.Println("Result is :-", result[:len(result)-1])
+
+	return fmt.Sprintf("$%d\r\n%s", len(result)-2, result[:len(result)-2])
 }
 
 func RDBFileContent(message []byte) []byte {
