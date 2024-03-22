@@ -21,8 +21,9 @@ func HandleEchoCommand(conn net.Conn, value string) {
 
 func HandleSetCommand(conn net.Conn, args []Value, storage *Storage, s *Server) {
 	if s.role == MasterRole {
-		go sendToAllTheReplicas(args, s)
+		sendToAllTheReplicas(args, s)
 	}
+	fmt.Println("From set command", args)
 	if len(args) > 2 {
 		if args[2].String() == "px" {
 			expiryStr := args[3].String()
@@ -108,6 +109,7 @@ func sendToAllTheReplicas(args []Value, s *Server) {
 			SerializeBulkString(args[0].String()),
 			SerializeBulkString(args[1].String()),
 		)
+		fmt.Println("Set Output", output)
 		(*conn).Write([]byte(output))
 	}
 }
