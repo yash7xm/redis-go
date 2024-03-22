@@ -21,7 +21,7 @@ func HandleEchoCommand(conn net.Conn, value string) {
 
 func HandleSetCommand(conn net.Conn, args []Value, storage *Storage, s *Server) {
 	if s.role == MasterRole {
-		sendToAllTheReplicas(args, s)
+		go sendToAllTheReplicas(args, s)
 	}
 	if len(args) > 2 {
 		if args[2].String() == "px" {
@@ -102,6 +102,7 @@ func sendRdbContent(conn net.Conn) {
 }
 
 func sendToAllTheReplicas(args []Value, s *Server) {
+	time.Sleep(time.Second * 3)
 	for _, conn := range s.connectedReplicas {
 		output := SerializeArray(
 			SerializeBulkString("SET"),
