@@ -108,7 +108,7 @@ func sendToAllTheReplicas(args []Value, s *Server) {
 			SerializeBulkString(args[0].String()),
 			SerializeBulkString(args[1].String()),
 		)
-		(*conn).Write([]byte(output))
+		go (*conn).Write([]byte(output))
 	}
 }
 
