@@ -6,6 +6,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -19,7 +20,8 @@ func HandleEchoCommand(conn net.Conn, value string) {
 	conn.Write([]byte(output))
 }
 
-func HandleSetCommand(conn net.Conn, args []Value, storage *Storage, s *Server) {
+func HandleSetCommand(conn net.Conn, args []Value, s *Server) {
+	fmt.Println("Args:-", args)
 	if len(args) > 2 {
 		if args[2].String() == "px" {
 			expiryStr := args[3].String()
@@ -29,21 +31,31 @@ func HandleSetCommand(conn net.Conn, args []Value, storage *Storage, s *Server) 
 				return
 			}
 
-			storage.SetWithExpiry(args[0].String(), args[1].String(), time.Duration(expiryInMilliSecond)*time.Millisecond)
+			s.storage.SetWithExpiry(args[0].String(), args[1].String(), time.Duration(expiryInMilliSecond)*time.Millisecond)
 		}
 	} else {
-		storage.Set(args[0].String(), args[1].String())
+		s.storage.Set(args[0].String(), args[1].String())
 	}
 
+	var wg sync.WaitGroup
+	s.replicaMutex.Lock()
 	for _, replicaConn := range s.connectedReplicas {
+		wg.Add(1)
+		fmt.Println("Connected Replicas from set:- ", s.connectedReplicas)
 		go func(conn net.Conn) {
-
+			defer wg.Done()
+			fmt.Println("Inside set loop")
 			err := propagateSetToReplica(conn, args)
 			if err != nil {
 				fmt.Println("Error sending SET to replica:", conn.RemoteAddr(), err)
 			}
 		}(*replicaConn)
 	}
+	s.replicaMutex.Unlock()
+
+	// Wait for all replicas to acknowledge the SET command
+	wg.Wait()
+
 	conn.Write([]byte("+OK\r\n"))
 }
 
@@ -81,8 +93,6 @@ func HandlePsyncCommand(conn net.Conn, s *Server) {
 	replOffset := 0
 
 	output := fmt.Sprintf("+FULLRESYNC %s %d\r\n", replId, replOffset)
-	conn.Write([]byte(output))
-	sendRdbContent(conn)
 
 	s.replicaMutex.Lock()
 	s.connectedReplicas = append(s.connectedReplicas, &conn)
@@ -90,6 +100,9 @@ func HandlePsyncCommand(conn net.Conn, s *Server) {
 
 	fmt.Println("From Psync Command Connected Replicas are ", s.connectedReplicas)
 
+	conn.Write([]byte(output))
+
+	sendRdbContent(conn)
 }
 
 func sendRdbContent(conn net.Conn) {
@@ -124,7 +137,7 @@ func propagateSetToReplica(conn net.Conn, args []Value) error {
 	return nil
 }
 
-func HandleCommands(value Value, conn net.Conn, storage *Storage, s *Server) {
+func HandleCommands(value Value, conn net.Conn, s *Server) {
 	command := strings.ToLower(value.Array()[0].String())
 	args := value.Array()[1:]
 
@@ -134,9 +147,9 @@ func HandleCommands(value Value, conn net.Conn, storage *Storage, s *Server) {
 	case "echo":
 		HandleEchoCommand(conn, args[0].String())
 	case "set":
-		HandleSetCommand(conn, args, storage, s)
+		HandleSetCommand(conn, args, s)
 	case "get":
-		HandleGetCommand(conn, args[0].String(), storage)
+		HandleGetCommand(conn, args[0].String(), s.storage)
 	case "info":
 		HandleInfoCommand(conn, s.role)
 	case "replconf":

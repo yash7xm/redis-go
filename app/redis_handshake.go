@@ -7,8 +7,11 @@ import (
 )
 
 func handleHandShake(s *Server) {
+
 	masterConn, err := net.Dial("tcp", fmt.Sprintf("%s:%s", s.replicaOfHost, s.replicaOfPort))
-	fmt.Printf("Connected to master on %s:%s\n", s.replicaOfHost, s.replicaOfPort)
+	if masterConn != nil {
+		fmt.Printf("Connected to master on %s:%s\n", s.replicaOfHost, s.replicaOfPort)
+	}
 	if err != nil {
 		fmt.Println("Failed to bind to port 6379")
 		os.Exit(1)
@@ -23,6 +26,11 @@ func sendPingToMaster(masterConn net.Conn) {
 		fmt.Println(err)
 		return
 	}
+
+	tempResponse := make([]byte, 1024)
+	n, _ := masterConn.Read(tempResponse)
+	fmt.Println(string(tempResponse[:n]))
+
 	sendReplConf(masterConn)
 }
 
@@ -34,12 +42,20 @@ func sendReplConf(masterConn net.Conn) {
 		return
 	}
 
+	tempResponse := make([]byte, 1024)
+	n, _ := masterConn.Read(tempResponse)
+	fmt.Println(string(tempResponse[:n]))
+
 	// sending second replconf to master
 	_, err = masterConn.Write([]byte("*3\r\n$8\r\nREPLCONF\r\n$4\r\ncapa\r\n$6\r\npsync2\r\n"))
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
+
+	tempResponse = make([]byte, 1024)
+	n, _ = masterConn.Read(tempResponse)
+	fmt.Println(string(tempResponse[:n]))
 
 	sendPsyncToMaster(masterConn)
 }
@@ -50,4 +66,12 @@ func sendPsyncToMaster(masterConn net.Conn) {
 		fmt.Println(err)
 		return
 	}
+
+	tempResponse := make([]byte, 1024)
+	n, _ := masterConn.Read(tempResponse)
+	fmt.Println(string(tempResponse[:n]))
+
+	tempResponse = make([]byte, 1024)
+	n, _ = masterConn.Read(tempResponse)
+	fmt.Println(string(tempResponse[:n]))
 }

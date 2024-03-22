@@ -76,11 +76,8 @@ func (s *Server) Run(port string) {
 	}
 
 	if s.role == SlaveRole {
-
 		handleHandShake(s)
 	}
-
-	storage := NewStorage()
 
 	for {
 		conn, err := listener.Accept()
@@ -89,11 +86,11 @@ func (s *Server) Run(port string) {
 			os.Exit(1)
 		}
 
-		go handleConnection(conn, storage, s)
+		go handleConnection(conn, s)
 	}
 }
 
-func handleConnection(conn net.Conn, storage *Storage, s *Server) {
+func handleConnection(conn net.Conn, s *Server) {
 	defer conn.Close()
 	for {
 		value, err := DecodeRESP(bufio.NewReader(conn))
@@ -103,6 +100,6 @@ func handleConnection(conn net.Conn, storage *Storage, s *Server) {
 			return // Ignore clients that we fail to read from
 		}
 
-		HandleCommands(value, conn, storage, s)
+		HandleCommands(value, conn, s)
 	}
 }
