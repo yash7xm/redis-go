@@ -6,6 +6,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -36,12 +37,24 @@ func HandleSetCommand(conn net.Conn, args []Value, storage *Storage, s *Server) 
 		storage.Set(args[0].String(), args[1].String())
 	}
 
+	replicaChan := make(chan struct{}, len(s.connectedReplicas))
+	var wg sync.WaitGroup
+	wg.Add(len(s.connectedReplicas))
+
 	for _, replicaConn := range s.connectedReplicas {
 		go func(conn net.Conn) {
-			propagateSetToReplica(conn, args)
+			defer wg.Done()
+			defer close(replicaChan)
+
+			err := propagateSetToReplica(conn, args)
+			if err != nil {
+				fmt.Println("Error sending SET to replica:", conn.RemoteAddr(), err)
+			}
 		}(*replicaConn)
 	}
 
+	wg.Wait()
+	close(replicaChan)
 	conn.Write([]byte("+OK\r\n"))
 }
 
@@ -106,14 +119,18 @@ func sendRdbContent(conn net.Conn) {
 	}
 }
 
-func propagateSetToReplica(conn net.Conn, args []Value) {
-	output := SerializeArray(
+func propagateSetToReplica(conn net.Conn, args []Value) error {
+	command := SerializeArray(
 		SerializeBulkString("SET"),
 		SerializeBulkString(args[0].String()),
 		SerializeBulkString(args[1].String()),
 	)
-	fmt.Println("Set Output", output)
-	(conn).Write([]byte(output))
+	_, err := conn.Write([]byte(command))
+	if err != nil {
+		fmt.Println("Error propagating SET to replica:", err)
+		return err
+	}
+	return nil
 }
 
 func HandleCommands(value Value, conn net.Conn, storage *Storage, s *Server) {
