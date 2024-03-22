@@ -67,8 +67,6 @@ func HandleInfoCommand(conn net.Conn, role Role) {
 func HandleReplconfCommand(conn net.Conn) {
 	output := GenSimpleString("OK")
 	conn.Write([]byte(output))
-
-	fmt.Println(conn)
 }
 
 func HandlePsyncCommand(conn net.Conn, s *Server) {
@@ -79,6 +77,8 @@ func HandlePsyncCommand(conn net.Conn, s *Server) {
 	conn.Write([]byte(output))
 
 	s.connectedReplicas = append(s.connectedReplicas, &conn)
+
+	fmt.Println("From Psync Command Connected Replicas are ", s.connectedReplicas)
 
 	sendRdbContent(conn)
 }
@@ -108,7 +108,7 @@ func sendToAllTheReplicas(args []Value, s *Server) {
 			SerializeBulkString(args[0].String()),
 			SerializeBulkString(args[1].String()),
 		)
-		go (*conn).Write([]byte(output))
+		(*conn).Write([]byte(output))
 	}
 }
 
