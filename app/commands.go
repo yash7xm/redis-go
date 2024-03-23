@@ -19,7 +19,7 @@ func HandleEchoCommand(conn net.Conn, value string) {
 	conn.Write([]byte(output))
 }
 
-func HandleSetCommand(conn net.Conn, args []Value, s *Server) {
+func (s *Server) HandleSetCommand(conn net.Conn, args []Value) {
 	if len(args) > 2 {
 		if args[2].String() == "px" {
 			expiryStr := args[3].String()
@@ -36,14 +36,14 @@ func HandleSetCommand(conn net.Conn, args []Value, s *Server) {
 	}
 
 	if s.role == MasterRole {
-		s.commandQueue <- args
+		s.propagateSetToReplica(args)
 	}
 
 	conn.Write([]byte("+OK\r\n"))
 }
 
-func HandleGetCommand(conn net.Conn, key string, storage *Storage) {
-	value, found := storage.Get(key)
+func (s *Server) HandleGetCommand(conn net.Conn, key string) {
+	value, found := s.storage.Get(key)
 	if found {
 		output := GenBulkString(value)
 		conn.Write([]byte(output))
@@ -52,7 +52,8 @@ func HandleGetCommand(conn net.Conn, key string, storage *Storage) {
 	}
 }
 
-func HandleInfoCommand(conn net.Conn, role Role) {
+func (s *Server) HandleInfoCommand(conn net.Conn) {
+	role := s.role
 	if role == "slave" {
 		output := GenSimpleString("role:slave")
 		conn.Write([]byte(output))
@@ -71,14 +72,14 @@ func HandleReplconfCommand(conn net.Conn) {
 	conn.Write([]byte(output))
 }
 
-func HandlePsyncCommand(conn net.Conn, s *Server) {
+func (s *Server) HandlePsyncCommand(conn net.Conn) {
 	replId := "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb"
 	replOffset := 0
 
 	output := fmt.Sprintf("+FULLRESYNC %s %d\r\n", replId, replOffset)
 
 	s.replicaMutex.Lock()
-	s.connectedReplicas = append(s.connectedReplicas, &conn)
+	s.connectedReplicas = append(s.connectedReplicas, conn)
 	s.replicaMutex.Unlock()
 
 	fmt.Println("From Psync Command Connected Replicas are ", s.connectedReplicas)
@@ -106,27 +107,24 @@ func sendRdbContent(conn net.Conn) {
 	}
 }
 
-// func propagateSetToReplica(s *Server, args []Value) {
+func (s *Server) propagateSetToReplica(args []Value) {
 
-// 	s.replicaMutex.Lock()
-//     defer s.replicaMutex.Unlock()
+	command := SerializeArray(
+		SerializeBulkString("set"),
+		SerializeBulkString(args[0].String()),
+		SerializeBulkString(args[1].String()),
+	)
 
-// 	for _, conn := range s.connectedReplicas {
-// 		command := SerializeArray(
-// 			SerializeBulkString("SET"),
-// 			SerializeBulkString(args[0].String()),
-// 			SerializeBulkString(args[1].String()),
-// 		)
-// 		_, err := (*conn).Write([]byte(command))
-// 		if err != nil {
-// 			fmt.Println("Error propagating SET to replica:", err)
-// 			break
-// 		}
-// 	}
+	for _, conn := range s.connectedReplicas {
+		_, err := conn.Write([]byte(command))
+		if err != nil {
+			fmt.Println("Error propagating SET to replica:", err)
+			break
+		}
+	}
+}
 
-// }
-
-func HandleCommands(value Value, conn net.Conn, s *Server) {
+func (s *Server) HandleCommands(value Value, conn net.Conn) {
 	command := strings.ToLower(value.Array()[0].String())
 	args := value.Array()[1:]
 
@@ -136,15 +134,15 @@ func HandleCommands(value Value, conn net.Conn, s *Server) {
 	case "echo":
 		HandleEchoCommand(conn, args[0].String())
 	case "set":
-		HandleSetCommand(conn, args, s)
+		s.HandleSetCommand(conn, args)
 	case "get":
-		HandleGetCommand(conn, args[0].String(), s.storage)
+		s.HandleGetCommand(conn, args[0].String())
 	case "info":
-		HandleInfoCommand(conn, s.role)
+		s.HandleInfoCommand(conn)
 	case "replconf":
 		HandleReplconfCommand(conn)
 	case "psync":
-		HandlePsyncCommand(conn, s)
+		s.HandlePsyncCommand(conn)
 	default:
 		conn.Write([]byte("-ERR unknown command '" + command + "'\r\n"))
 	}

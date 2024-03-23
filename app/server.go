@@ -20,9 +20,8 @@ type Server struct {
 	role              Role
 	replicaOfHost     string
 	replicaOfPort     string
-	connectedReplicas []*net.Conn
+	connectedReplicas []net.Conn
 	replicaMutex      sync.Mutex
-	commandQueue      chan []Value
 }
 
 func main() {
@@ -53,7 +52,6 @@ func main() {
 	}
 
 	srv := NewServer(role, replicaOfHost, replicaOfPort)
-	go srv.handleCommandPropagation()
 	srv.Run(port)
 
 }
@@ -62,43 +60,13 @@ func NewServer(role Role, replicaOfHost string, replicaOfPort string) *Server {
 	servStorage := NewStorage()
 
 	return &Server{
-		storage:       servStorage,
-		role:          role,
-		replicaOfHost: replicaOfHost,
-		replicaOfPort: replicaOfPort,
-		commandQueue:  make(chan []Value, 100),
+		storage:           servStorage,
+		role:              role,
+		replicaOfHost:     replicaOfHost,
+		replicaOfPort:     replicaOfPort,
+		connectedReplicas: []net.Conn{},
+		replicaMutex:      sync.Mutex{},
 	}
-}
-
-func (s *Server) handleCommandPropagation() {
-    for {
-        select {
-        case args := <-s.commandQueue:
-            s.propagateToReplicas(args)
-        }
-    }
-}
-
-func (s *Server) propagateToReplicas(args []Value) {
-    s.replicaMutex.Lock()
-    defer s.replicaMutex.Unlock()
-
-    for i := len(s.connectedReplicas) - 1; i >= 0; i-- {
-        conn := s.connectedReplicas[i]
-
-        command := SerializeArray(
-            SerializeBulkString("SET"),
-            SerializeBulkString(args[0].String()),
-            SerializeBulkString(args[1].String()),
-        )
-        _, err := (*conn).Write([]byte(command))
-        if err != nil {
-            // Replica disconnected, remove from connected replicas
-            fmt.Println("Replica disconnected:", err)
-            (*conn).Close() // Close the connection
-            s.connectedReplicas = append(s.connectedReplicas[:i], s.connectedReplicas[i+1:]...)
-        }
-    }
 }
 
 func (s *Server) Run(port string) {
@@ -110,7 +78,7 @@ func (s *Server) Run(port string) {
 	}
 
 	if s.role == SlaveRole {
-		handleHandShake(s)
+		s.handleHandShake()
 	}
 
 	for {
@@ -120,12 +88,12 @@ func (s *Server) Run(port string) {
 			os.Exit(1)
 		}
 
-		go handleConnection(conn, s)
+		go s.handleConnection(conn) 
 	}
 }
 
-func handleConnection(conn net.Conn, s *Server) {
-	defer conn.Close()
+func (s *Server) handleConnection(conn net.Conn) {
+	// defer conn.Close()
 	for {
 		value, err := DecodeRESP(bufio.NewReader(conn))
 
@@ -134,6 +102,6 @@ func handleConnection(conn net.Conn, s *Server) {
 			return // Ignore clients that we fail to read from
 		}
 
-		HandleCommands(value, conn, s)
+		s.HandleCommands(value, conn)
 	}
 }

@@ -6,8 +6,7 @@ import (
 	"os"
 )
 
-func handleHandShake(s *Server) {
-
+func (s *Server) handleHandShake() {
 	masterConn, err := net.Dial("tcp", fmt.Sprintf("%s:%s", s.replicaOfHost, s.replicaOfPort))
 	if masterConn != nil {
 		fmt.Printf("Connected to master on %s:%s\n", s.replicaOfHost, s.replicaOfPort)
@@ -74,4 +73,6 @@ func sendPsyncToMaster(masterConn net.Conn) {
 	tempResponse = make([]byte, 1024)
 	n, _ = masterConn.Read(tempResponse)
 	fmt.Println(string(tempResponse[:n]))
+
 }
+
