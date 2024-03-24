@@ -135,7 +135,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 
 		if err != nil {
 			fmt.Println("Error decoding RESP: ", err.Error())
-			return // Ignore clients that we fail to read from
+			return
 		}
 
 		replicaChannel = make(chan []Value)
