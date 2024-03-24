@@ -19,7 +19,7 @@ func HandleEchoCommand(conn net.Conn, value string) {
 	conn.Write([]byte(output))
 }
 
-func (s *Server) HandleSetCommand(conn net.Conn, args []Value) {
+func (s *Server) HandleSetCommand(conn net.Conn, args []Value, replicaChannel chan []Value) {
 	if len(args) > 2 {
 		if args[2].String() == "px" {
 			expiryStr := args[3].String()
@@ -36,7 +36,7 @@ func (s *Server) HandleSetCommand(conn net.Conn, args []Value) {
 	}
 
 	if s.role == MasterRole {
-		s.propagateSetToReplica(args)
+		replicaChannel <- args
 	}
 
 	conn.Write([]byte("+OK\r\n"))
@@ -82,7 +82,7 @@ func (s *Server) HandlePsyncCommand(conn net.Conn) {
 	s.connectedReplicas.Add(conn) // Add the replica's connection to the pool
 	s.replicaMutex.Unlock()
 
-	fmt.Println("From Psync Command Connected Replicas are ", s.connectedReplicas)
+	// fmt.Println("From Psync Command Connected Replicas are ", s.connectedReplicas)
 
 	conn.Write([]byte(output))
 
@@ -107,7 +107,9 @@ func sendRdbContent(conn net.Conn) {
 	}
 }
 
-func (s *Server) propagateSetToReplica(args []Value) {
+func (s *Server) propagateSetToReplica(replicaChannel chan []Value) {
+	args := <- replicaChannel
+	fmt.Println("Args:-", args)
     command := SerializeArray(
         SerializeBulkString("set"),
         SerializeBulkString(args[0].String()),
@@ -149,8 +151,7 @@ func (s *Server) propagateSetToReplica(args []Value) {
     }
 }
 
-
-func (s *Server) HandleCommands(value Value, conn net.Conn) {
+func (s *Server) HandleCommands(value Value, conn net.Conn,replicaChannel chan []Value) {
 	command := strings.ToLower(value.Array()[0].String())
 	args := value.Array()[1:]
 
@@ -160,7 +161,7 @@ func (s *Server) HandleCommands(value Value, conn net.Conn) {
 	case "echo":
 		HandleEchoCommand(conn, args[0].String())
 	case "set":
-		s.HandleSetCommand(conn, args)
+		s.HandleSetCommand(conn, args, replicaChannel)
 	case "get":
 		s.HandleGetCommand(conn, args[0].String())
 	case "info":

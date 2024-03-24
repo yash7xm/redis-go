@@ -129,6 +129,7 @@ func (s *Server) Run(port string) {
 
 func (s *Server) handleConnection(conn net.Conn) {
 	defer conn.Close()
+	var replicaChannel chan []Value
 	for {
 		value, err := DecodeRESP(bufio.NewReader(conn))
 
@@ -137,6 +138,12 @@ func (s *Server) handleConnection(conn net.Conn) {
 			return // Ignore clients that we fail to read from
 		}
 
-		s.HandleCommands(value, conn)
+		replicaChannel = make(chan []Value)
+
+		if s.role == MasterRole {
+			go s.propagateSetToReplica(replicaChannel)
+		}
+
+		s.HandleCommands(value, conn, replicaChannel)
 	}
 }
