@@ -95,7 +95,7 @@ func NewServer(role Role, replicaOfHost string, replicaOfPort string) *Server {
 		role:              role,
 		replicaOfHost:     replicaOfHost,
 		replicaOfPort:     replicaOfPort,
-		connectedReplicas: ConnectionPool{}, 
+		connectedReplicas: ConnectionPool{},
 		replicaMutex:      sync.Mutex{},
 	}
 }
@@ -129,13 +129,12 @@ func (s *Server) Run(port string) {
 
 func (s *Server) handleReplicaPropagation(replicaChannel chan []Value) {
 	for {
-		args := <- replicaChannel
+		args := <-replicaChannel
 		go s.propagateSetToReplica(args)
 	}
 }
 
 func (s *Server) handleConnection(conn net.Conn) {
-	defer conn.Close()
 	var replicaChannel chan []Value
 	for {
 		value, err := DecodeRESP(bufio.NewReader(conn))

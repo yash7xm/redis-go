@@ -110,48 +110,50 @@ func sendRdbContent(conn net.Conn) {
 func (s *Server) propagateSetToReplica(args []Value) {
 	// args := <- replicaChannel
 	fmt.Println("Args:-", args)
-    command := SerializeArray(
-        SerializeBulkString("set"),
-        SerializeBulkString(args[0].String()),
-        SerializeBulkString(args[1].String()),
-    )
+	command := SerializeArray(
+		SerializeBulkString("set"),
+		SerializeBulkString(args[0].String()),
+		SerializeBulkString(args[1].String()),
+	)
 
-    s.replicaMutex.Lock()
-    defer s.replicaMutex.Unlock()
+	s.replicaMutex.Lock()
+	defer s.replicaMutex.Unlock()
 
-    // Track the number of successful writes
-    successfulWrites := 0
+	// Track the number of successful writes
+	successfulWrites := 0
 
-    for {
-        replicaConn, err := s.connectedReplicas.Get() // Get a connection from the pool
-        if err != nil {
-            fmt.Println("Error getting connection from pool:", err)
-            break // Break loop if there are no available connections
-        }
+	for {
+		replicaConn, err := s.connectedReplicas.Get() // Get a connection from the pool
+		if err != nil {
+			fmt.Println("Error getting connection from pool:", err)
+			break // Break loop if there are no available connections
+		}
 
-        n, err := replicaConn.Write([]byte(command))
-        fmt.Println("Conn:-", n)
-        if err != nil {
-            fmt.Println("Error writing to replica:", err)
-            s.connectedReplicas.Put(replicaConn) // Return the connection to the pool
-            continue                             // Skip to the next replica
-        }
-        fmt.Println("Command sent to replica. Bytes written:", n)
+		n, err := replicaConn.Write([]byte(command))
+		if err != nil {
+			fmt.Println("Error writing to replica:", err)
+			s.connectedReplicas.Put(replicaConn) // Return the connection to the pool
+			continue                             // Skip to the next replica
+		}
+		fmt.Println("Command sent to replica. Bytes written:", n)
 
-        // Increment successful writes
-        successfulWrites++
 
-        // Return the connection to the pool
-        s.connectedReplicas.Put(replicaConn)
+		// newReplConn, err := net.Dial("tcp", fmt.Sprintf("%s:%s", "localhost", s.replicaOfPort))
 
-        // Check if all replicas received the command
-        if successfulWrites == len(s.connectedReplicas.replicas) {
-            break
-        }
-    }
+		// Increment successful writes
+		successfulWrites++
+
+		// Return the connection to the pool
+		s.connectedReplicas.Put(replicaConn)
+
+		// Check if all replicas received the command
+		if successfulWrites == len(s.connectedReplicas.replicas) {
+			break
+		}
+	}
 }
 
-func (s *Server) HandleCommands(value Value, conn net.Conn,replicaChannel chan []Value) {
+func (s *Server) HandleCommands(value Value, conn net.Conn, replicaChannel chan []Value) {
 	command := strings.ToLower(value.Array()[0].String())
 	args := value.Array()[1:]
 
