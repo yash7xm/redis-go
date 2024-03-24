@@ -107,8 +107,8 @@ func sendRdbContent(conn net.Conn) {
 	}
 }
 
-func (s *Server) propagateSetToReplica(replicaChannel chan []Value) {
-	args := <- replicaChannel
+func (s *Server) propagateSetToReplica(args []Value) {
+	// args := <- replicaChannel
 	fmt.Println("Args:-", args)
     command := SerializeArray(
         SerializeBulkString("set"),

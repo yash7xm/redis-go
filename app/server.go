@@ -127,6 +127,13 @@ func (s *Server) Run(port string) {
 	}
 }
 
+func (s *Server) handleReplicaPropagation(replicaChannel chan []Value) {
+	for {
+		args := <- replicaChannel
+		go s.propagateSetToReplica(args)
+	}
+}
+
 func (s *Server) handleConnection(conn net.Conn) {
 	defer conn.Close()
 	var replicaChannel chan []Value
@@ -141,7 +148,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 		replicaChannel = make(chan []Value)
 
 		if s.role == MasterRole {
-			go s.propagateSetToReplica(replicaChannel)
+			go s.handleReplicaPropagation(replicaChannel)
 		}
 
 		s.HandleCommands(value, conn, replicaChannel)
