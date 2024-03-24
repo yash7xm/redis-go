@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -20,8 +21,38 @@ type Server struct {
 	role              Role
 	replicaOfHost     string
 	replicaOfPort     string
-	connectedReplicas []net.Conn
+	connectedReplicas ConnectionPool
 	replicaMutex      sync.Mutex
+}
+
+type ConnectionPool struct {
+	replicas []net.Conn
+	mutex    sync.Mutex
+}
+
+func (cp *ConnectionPool) Add(conn net.Conn) {
+	cp.mutex.Lock()
+	defer cp.mutex.Unlock()
+	cp.replicas = append(cp.replicas, conn)
+}
+
+// Function to get a connection from the pool
+func (cp *ConnectionPool) Get() (net.Conn, error) {
+	cp.mutex.Lock()
+	defer cp.mutex.Unlock()
+	if len(cp.replicas) == 0 {
+		return nil, errors.New("connection pool is empty")
+	}
+	conn := cp.replicas[0]
+	cp.replicas = cp.replicas[1:]
+	return conn, nil
+}
+
+// Function to return a connection to the pool
+func (cp *ConnectionPool) Put(conn net.Conn) {
+	cp.mutex.Lock()
+	defer cp.mutex.Unlock()
+	cp.replicas = append(cp.replicas, conn)
 }
 
 func main() {
@@ -64,10 +95,12 @@ func NewServer(role Role, replicaOfHost string, replicaOfPort string) *Server {
 		role:              role,
 		replicaOfHost:     replicaOfHost,
 		replicaOfPort:     replicaOfPort,
-		connectedReplicas: []net.Conn{},
+		connectedReplicas: ConnectionPool{}, 
 		replicaMutex:      sync.Mutex{},
 	}
 }
+
+var noOfClients int
 
 func (s *Server) Run(port string) {
 	listener, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%s", port))
@@ -83,17 +116,19 @@ func (s *Server) Run(port string) {
 
 	for {
 		conn, err := listener.Accept()
+		noOfClients++
+		fmt.Println("No of connected clients:- ", noOfClients)
 		if err != nil {
 			fmt.Println("Error accepting connection try again: ", err.Error())
 			os.Exit(1)
 		}
 
-		go s.handleConnection(conn) 
+		go s.handleConnection(conn)
 	}
 }
 
 func (s *Server) handleConnection(conn net.Conn) {
-	// defer conn.Close()
+	defer conn.Close()
 	for {
 		value, err := DecodeRESP(bufio.NewReader(conn))
 

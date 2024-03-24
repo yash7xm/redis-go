@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-func HandlePingCommand(conn net.Conn) {
+func (s *Server) HandlePingCommand(conn net.Conn) {
 	output := GenSimpleString("PONG")
 	conn.Write([]byte(output))
 }
@@ -79,7 +79,7 @@ func (s *Server) HandlePsyncCommand(conn net.Conn) {
 	output := fmt.Sprintf("+FULLRESYNC %s %d\r\n", replId, replOffset)
 
 	s.replicaMutex.Lock()
-	s.connectedReplicas = append(s.connectedReplicas, conn)
+	s.connectedReplicas.Add(conn) // Add the replica's connection to the pool
 	s.replicaMutex.Unlock()
 
 	fmt.Println("From Psync Command Connected Replicas are ", s.connectedReplicas)
@@ -108,21 +108,47 @@ func sendRdbContent(conn net.Conn) {
 }
 
 func (s *Server) propagateSetToReplica(args []Value) {
+    command := SerializeArray(
+        SerializeBulkString("set"),
+        SerializeBulkString(args[0].String()),
+        SerializeBulkString(args[1].String()),
+    )
 
-	command := SerializeArray(
-		SerializeBulkString("set"),
-		SerializeBulkString(args[0].String()),
-		SerializeBulkString(args[1].String()),
-	)
+    s.replicaMutex.Lock()
+    defer s.replicaMutex.Unlock()
 
-	for _, conn := range s.connectedReplicas {
-		_, err := conn.Write([]byte(command))
-		if err != nil {
-			fmt.Println("Error propagating SET to replica:", err)
-			break
-		}
-	}
+    // Track the number of successful writes
+    successfulWrites := 0
+
+    for {
+        replicaConn, err := s.connectedReplicas.Get() // Get a connection from the pool
+        if err != nil {
+            fmt.Println("Error getting connection from pool:", err)
+            break // Break loop if there are no available connections
+        }
+
+        n, err := replicaConn.Write([]byte(command))
+        fmt.Println("Conn:-", n)
+        if err != nil {
+            fmt.Println("Error writing to replica:", err)
+            s.connectedReplicas.Put(replicaConn) // Return the connection to the pool
+            continue                             // Skip to the next replica
+        }
+        fmt.Println("Command sent to replica. Bytes written:", n)
+
+        // Increment successful writes
+        successfulWrites++
+
+        // Return the connection to the pool
+        s.connectedReplicas.Put(replicaConn)
+
+        // Check if all replicas received the command
+        if successfulWrites == len(s.connectedReplicas.replicas) {
+            break
+        }
+    }
 }
+
 
 func (s *Server) HandleCommands(value Value, conn net.Conn) {
 	command := strings.ToLower(value.Array()[0].String())
@@ -130,7 +156,7 @@ func (s *Server) HandleCommands(value Value, conn net.Conn) {
 
 	switch command {
 	case "ping":
-		HandlePingCommand(conn)
+		s.HandlePingCommand(conn)
 	case "echo":
 		HandleEchoCommand(conn, args[0].String())
 	case "set":
