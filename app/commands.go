@@ -131,7 +131,7 @@ func (s *Server) propagateSetToReplica(args []Value) {
 		if err != nil {
 			fmt.Println("Error writing to replica:", err)
 			s.connectedReplicas.Put(replicaConn) // Return the connection to the pool
-			continue                             // Skip to the next replica
+			break                             // Skip to the next replica
 		}
 		fmt.Println("Command sent to replica. Bytes written:", n)
 

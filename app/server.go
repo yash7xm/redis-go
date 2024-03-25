@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -23,36 +22,6 @@ type Server struct {
 	replicaOfPort     string
 	connectedReplicas ConnectionPool
 	replicaMutex      sync.Mutex
-}
-
-type ConnectionPool struct {
-	replicas []net.Conn
-	mutex    sync.Mutex
-}
-
-func (cp *ConnectionPool) Add(conn net.Conn) {
-	cp.mutex.Lock()
-	defer cp.mutex.Unlock()
-	cp.replicas = append(cp.replicas, conn)
-}
-
-// Function to get a connection from the pool
-func (cp *ConnectionPool) Get() (net.Conn, error) {
-	cp.mutex.Lock()
-	defer cp.mutex.Unlock()
-	if len(cp.replicas) == 0 {
-		return nil, errors.New("connection pool is empty")
-	}
-	conn := cp.replicas[0]
-	cp.replicas = cp.replicas[1:]
-	return conn, nil
-}
-
-// Function to return a connection to the pool
-func (cp *ConnectionPool) Put(conn net.Conn) {
-	cp.mutex.Lock()
-	defer cp.mutex.Unlock()
-	cp.replicas = append(cp.replicas, conn)
 }
 
 func main() {
@@ -118,6 +87,7 @@ func (s *Server) Run(port string) {
 		conn, err := listener.Accept()
 		noOfClients++
 		fmt.Println("No of connected clients:- ", noOfClients)
+		fmt.Println("Connected to ", conn.RemoteAddr())
 		if err != nil {
 			fmt.Println("Error accepting connection try again: ", err.Error())
 			os.Exit(1)
@@ -128,8 +98,9 @@ func (s *Server) Run(port string) {
 }
 
 func (s *Server) handleConnection(conn net.Conn) {
+	reader := bufio.NewReader(conn)
 	for {
-		value, err := DecodeRESP(bufio.NewReader(conn))
+		value, err := DecodeRESP(reader)
 
 		if err != nil {
 			fmt.Println("Error decoding RESP: ", err.Error())

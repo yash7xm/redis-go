@@ -10,6 +10,8 @@ func (s *Server) handleHandShake() {
 	masterConn, err := net.Dial("tcp", fmt.Sprintf("%s:%s", s.replicaOfHost, s.replicaOfPort))
 	if masterConn != nil {
 		fmt.Printf("Connected to master on %s:%s\n", s.replicaOfHost, s.replicaOfPort)
+		
+		// s.connectedReplicas.Add(masterConn)
 	}
 	if err != nil {
 		fmt.Println("Failed to bind to port 6379")
@@ -54,12 +56,4 @@ func (s *Server) handleHandShake() {
 		fmt.Println(err)
 		return
 	}
-
-	tempResponse = make([]byte, 1024)
-	n, _ = masterConn.Read(tempResponse)
-	fmt.Println(string(tempResponse[:n]))
-
-	tempResponse = make([]byte, 1024)
-	n, _ = masterConn.Read(tempResponse)
-	fmt.Println(string(tempResponse[:n]))
 }
