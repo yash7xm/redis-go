@@ -109,14 +109,9 @@ func (s *Server) Run(port string) {
 		fmt.Println("Failed to bind to port 6379")
 		os.Exit(1)
 	}
-	replicaChannel := make(chan []Value)
 
 	if s.role == SlaveRole {
 		s.handleHandShake()
-	} else {
-		if s.role == MasterRole {
-			go s.handleReplicaPropagation(replicaChannel)
-		}
 	}
 
 	for {
@@ -128,18 +123,11 @@ func (s *Server) Run(port string) {
 			os.Exit(1)
 		}
 
-		go s.handleConnection(conn, replicaChannel)
+		go s.handleConnection(conn)
 	}
 }
 
-func (s *Server) handleReplicaPropagation(replicaChannel chan []Value) {
-	for {
-		args := <-replicaChannel
-		go s.propagateSetToReplica(args)
-	}
-}
-
-func (s *Server) handleConnection(conn net.Conn, replicaChannel chan []Value) {
+func (s *Server) handleConnection(conn net.Conn) {
 	for {
 		value, err := DecodeRESP(bufio.NewReader(conn))
 
@@ -148,6 +136,6 @@ func (s *Server) handleConnection(conn net.Conn, replicaChannel chan []Value) {
 			return
 		}
 
-		s.HandleCommands(value, conn, replicaChannel)
+		s.HandleCommands(value, conn)
 	}
 }

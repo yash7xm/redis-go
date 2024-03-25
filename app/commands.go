@@ -19,7 +19,7 @@ func HandleEchoCommand(conn net.Conn, value string) {
 	conn.Write([]byte(output))
 }
 
-func (s *Server) HandleSetCommand(conn net.Conn, args []Value, replicaChannel chan []Value) {
+func (s *Server) HandleSetCommand(conn net.Conn, args []Value) {
 	if len(args) > 2 {
 		if args[2].String() == "px" {
 			expiryStr := args[3].String()
@@ -36,7 +36,7 @@ func (s *Server) HandleSetCommand(conn net.Conn, args []Value, replicaChannel ch
 	}
 
 	if s.role == MasterRole {
-		replicaChannel <- args
+		s.propagateSetToReplica(args)
 	}
 
 	conn.Write([]byte("+OK\r\n"))
@@ -108,8 +108,6 @@ func sendRdbContent(conn net.Conn) {
 }
 
 func (s *Server) propagateSetToReplica(args []Value) {
-	// args := <- replicaChannel
-	fmt.Println("Args:-", args)
 	command := SerializeArray(
 		SerializeBulkString("set"),
 		SerializeBulkString(args[0].String()),
@@ -137,9 +135,6 @@ func (s *Server) propagateSetToReplica(args []Value) {
 		}
 		fmt.Println("Command sent to replica. Bytes written:", n)
 
-
-		// newReplConn, err := net.Dial("tcp", fmt.Sprintf("%s:%s", "localhost", s.replicaOfPort))
-
 		// Increment successful writes
 		successfulWrites++
 
@@ -153,7 +148,7 @@ func (s *Server) propagateSetToReplica(args []Value) {
 	}
 }
 
-func (s *Server) HandleCommands(value Value, conn net.Conn, replicaChannel chan []Value) {
+func (s *Server) HandleCommands(value Value, conn net.Conn) {
 	command := strings.ToLower(value.Array()[0].String())
 	args := value.Array()[1:]
 
@@ -163,7 +158,7 @@ func (s *Server) HandleCommands(value Value, conn net.Conn, replicaChannel chan 
 	case "echo":
 		HandleEchoCommand(conn, args[0].String())
 	case "set":
-		s.HandleSetCommand(conn, args, replicaChannel)
+		s.HandleSetCommand(conn, args)
 	case "get":
 		s.HandleGetCommand(conn, args[0].String())
 	case "info":
