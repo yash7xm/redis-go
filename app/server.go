@@ -80,7 +80,8 @@ func (s *Server) Run(port string) {
 	}
 
 	if s.role == SlaveRole {
-		s.handleHandShake()
+		masterConn := s.handleHandShake()
+		go s.handleConnection(*masterConn)
 	}
 
 	for {
@@ -101,6 +102,8 @@ func (s *Server) handleConnection(conn net.Conn) {
 	reader := bufio.NewReader(conn)
 	for {
 		value, err := DecodeRESP(reader)
+
+		fmt.Println("Decoded Value is:- ", value.Array())
 
 		if err != nil {
 			fmt.Println("Error decoding RESP: ", err.Error())

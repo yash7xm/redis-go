@@ -6,7 +6,7 @@ import (
 	"os"
 )
 
-func (s *Server) handleHandShake() {
+func (s *Server) handleHandShake() *net.Conn {
 	masterConn, err := net.Dial("tcp", fmt.Sprintf("%s:%s", s.replicaOfHost, s.replicaOfPort))
 	if masterConn != nil {
 		fmt.Printf("Connected to master on %s:%s\n", s.replicaOfHost, s.replicaOfPort)
@@ -22,7 +22,7 @@ func (s *Server) handleHandShake() {
 	_, err = masterConn.Write([]byte(GenBulkArray([]string{"PING"})))
 	if err != nil {
 		fmt.Println(err)
-		return
+		return nil
 	}
 
 	tempResponse := make([]byte, 1024)
@@ -33,7 +33,7 @@ func (s *Server) handleHandShake() {
 	_, err = masterConn.Write([]byte("*3\r\n$8\r\nREPLCONF\r\n$14\r\nlistening-port\r\n$4\r\n6380\r\n"))
 	if err != nil {
 		fmt.Println(err)
-		return
+		return nil
 	}
 
 	tempResponse = make([]byte, 1024)
@@ -44,7 +44,7 @@ func (s *Server) handleHandShake() {
 	_, err = masterConn.Write([]byte("*3\r\n$8\r\nREPLCONF\r\n$4\r\ncapa\r\n$6\r\npsync2\r\n"))
 	if err != nil {
 		fmt.Println(err)
-		return
+		return nil
 	}
 
 	tempResponse = make([]byte, 1024)
@@ -54,6 +54,12 @@ func (s *Server) handleHandShake() {
 	_, err = masterConn.Write([]byte("*3\r\n$5\r\nPSYNC\r\n$1\r\n?\r\n$2\r\n-1\r\n"))
 	if err != nil {
 		fmt.Println(err)
-		return
+		return nil
 	}
+
+	tempResponse = make([]byte, 1024)
+	n, _ = masterConn.Read(tempResponse)
+	fmt.Println(string(tempResponse[:n]))
+
+	return &masterConn
 }

@@ -39,7 +39,9 @@ func (s *Server) HandleSetCommand(conn net.Conn, args []Value) {
 		s.propagateSetToReplica(args)
 	}
 
-	conn.Write([]byte("+OK\r\n"))
+	if s.role == MasterRole {
+		conn.Write([]byte("+OK\r\n"))
+	}
 }
 
 func (s *Server) HandleGetCommand(conn net.Conn, key string) {
@@ -81,8 +83,6 @@ func (s *Server) HandlePsyncCommand(conn net.Conn) {
 	s.replicaMutex.Lock()
 	s.connectedReplicas.Add(conn) // Add the replica's connection to the pool
 	s.replicaMutex.Unlock()
-
-	// fmt.Println("From Psync Command Connected Replicas are ", s.connectedReplicas)
 
 	conn.Write([]byte(output))
 
@@ -127,13 +127,12 @@ func (s *Server) propagateSetToReplica(args []Value) {
 			break // Break loop if there are no available connections
 		}
 
-		n, err := replicaConn.Write([]byte(command))
+		_, err = replicaConn.Write([]byte(command))
 		if err != nil {
 			fmt.Println("Error writing to replica:", err)
 			s.connectedReplicas.Put(replicaConn) // Return the connection to the pool
-			break                             // Skip to the next replica
+			break                             
 		}
-		fmt.Println("Command sent to replica. Bytes written:", n)
 
 		// Increment successful writes
 		successfulWrites++
@@ -149,6 +148,9 @@ func (s *Server) propagateSetToReplica(args []Value) {
 }
 
 func (s *Server) HandleCommands(value Value, conn net.Conn) {
+	if len(value.Array()) == 0 {
+		return 
+	}
 	command := strings.ToLower(value.Array()[0].String())
 	args := value.Array()[1:]
 
