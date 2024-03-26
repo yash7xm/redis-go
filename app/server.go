@@ -80,7 +80,10 @@ func (s *Server) Run(port string) {
 	}
 
 	if s.role == SlaveRole {
-		masterConn := s.handleHandShake()
+		var wg sync.WaitGroup
+		wg.Add(1)
+		masterConn := s.handleHandShake(&wg)
+		wg.Wait()
 		go s.handleConnection(*masterConn)
 	}
 

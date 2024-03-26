@@ -86,6 +86,8 @@ func (s *Server) HandlePsyncCommand(conn net.Conn) {
 
 	conn.Write([]byte(output))
 
+	time.Sleep(200 * time.Millisecond)
+
 	sendRdbContent(conn)
 }
 
