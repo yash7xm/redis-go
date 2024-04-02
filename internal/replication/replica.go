@@ -84,48 +84,16 @@ func HandleHandShake(s *config.Server) {
 				break
 			}
 			fmt.Println("RDB file received")
+			s.HandeshakeCompletedWithMaster = true
 			continue
 		}
 
 		command.Handler(message.Commands, masterConn, s)
-	}
-}
 
-func PropagateSetToReplica(args []string, s *config.Server) {
-
-	args = append([]string{"set"}, args...)
-
-	setCommands := parser.SerializeArray(args)
-
-	s.ReplicaMutex.Lock()
-	defer s.ReplicaMutex.Unlock()
-
-	// Track the number of successful writes
-	successfulWrites := 0
-
-	for {
-		replicaConn, err := s.ConnectedReplicas.Get() // Get a connection from the pool
-		if err != nil {
-			fmt.Println("Error getting connection from pool:", err)
-			break // Break loop if there are no available connections
-		}
-
-		_, err = replicaConn.Write(setCommands)
-		if err != nil {
-			fmt.Println("Error writing to replica:", err)
-			s.ConnectedReplicas.Put(replicaConn) // Return the connection to the pool
-			break
-		}
-
-		// Increment successful writes
-		successfulWrites++
-
-		// Return the connection to the pool
-		s.ConnectedReplicas.Put(replicaConn)
-
-		// Check if all replicas received the command
-		if successfulWrites == len(s.ConnectedReplicas.Replicas) {
-			break
+		// update offset
+		if s.HandeshakeCompletedWithMaster {
+			fmt.Println("Updating offset", s.MasterReplOffset, message.ReadBytes, message.Commands)
+			s.MasterReplOffset += message.ReadBytes
 		}
 	}
 }

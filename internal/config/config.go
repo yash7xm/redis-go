@@ -15,12 +15,14 @@ const (
 type Role string
 
 type Server struct {
-	Storage           *store.Storage
-	Role              Role
-	ReplicaOfHost     string
-	ReplicaOfPort     string
-	ConnectedReplicas utils.ConnectionPool
-	ReplicaMutex      sync.Mutex
+	Storage                       *store.Storage
+	Role                          Role
+	ReplicaOfHost                 string
+	ReplicaOfPort                 string
+	ConnectedReplicas             utils.ConnectionPool
+	ReplicaMutex                  sync.Mutex
+	HandeshakeCompletedWithMaster bool
+	MasterReplOffset              int
 }
 
 func NewServer(role Role, replicaOfHost string, replicaOfPort string) *Server {
@@ -33,5 +35,6 @@ func NewServer(role Role, replicaOfHost string, replicaOfPort string) *Server {
 		ReplicaOfPort:     replicaOfPort,
 		ConnectedReplicas: utils.ConnectionPool{},
 		ReplicaMutex:      sync.Mutex{},
+		MasterReplOffset:  0,
 	}
 }

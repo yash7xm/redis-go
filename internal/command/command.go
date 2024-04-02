@@ -12,9 +12,12 @@ import (
 	"github.com/codecrafters-io/redis-starter-go/internal/parser"
 )
 
-func HandlePingCommand(conn net.Conn) {
-	output := parser.SerializeSimpleString("PONG")
-	conn.Write([]byte(output))
+func HandlePingCommand(conn net.Conn, s *config.Server) {
+
+	if s.Role == config.MasterRole {
+		output := parser.SerializeSimpleString("PONG")
+		conn.Write([]byte(output))
+	}
 }
 
 func HandleEchoCommand(conn net.Conn, value string) {
@@ -72,9 +75,15 @@ func HandleInfoCommand(conn net.Conn, s *config.Server) {
 	}
 }
 
-func HandleReplconfCommand(conn net.Conn, args []string) {
+func HandleReplconfCommand(conn net.Conn, args []string, s *config.Server) {
 	if strings.ToLower(string(args[0])) == "getack" {
-		conn.Write([]byte("*3\r\n$8\r\nREPLCONF\r\n$3\r\nACK\r\n$1\r\n0\r\n"))
+		if s.Role == config.MasterRole {
+			fmt.Println(parser.SerializeSimpleError("only slave can receive GETACK"))
+		}
+		offset := fmt.Sprintf("%d", s.MasterReplOffset)
+		response := parser.SerializeArray([]string{"REPLCONF", "ACK", offset})
+		conn.Write(response)
+		// conn.Write([]byte("*3\r\n$8\r\nREPLCONF\r\n$3\r\nACK\r\n$1\r\n0\r\n"))
 	} else {
 		output := parser.SerializeSimpleString("OK")
 		conn.Write([]byte(output))
@@ -165,7 +174,7 @@ func Handler(value []string, conn net.Conn, s *config.Server) {
 
 	switch command {
 	case "ping":
-		HandlePingCommand(conn)
+		HandlePingCommand(conn, s)
 	case "echo":
 		HandleEchoCommand(conn, args[0])
 	case "set":
@@ -175,7 +184,7 @@ func Handler(value []string, conn net.Conn, s *config.Server) {
 	case "info":
 		HandleInfoCommand(conn, s)
 	case "replconf":
-		HandleReplconfCommand(conn, args)
+		HandleReplconfCommand(conn, args, s)
 	case "psync":
 		HandlePsyncCommand(conn, s)
 	case "fullresync":
