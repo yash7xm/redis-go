@@ -1,4 +1,4 @@
-package main
+package replication
 
 import (
 	"bufio"
@@ -12,7 +12,7 @@ import (
 	"github.com/codecrafters-io/redis-starter-go/internal/parser"
 )
 
-func handleHandShake(s *config.Server) {
+func HandleHandShake(s *config.Server) {
 	masterConn, err := net.Dial("tcp", fmt.Sprintf("%s:%s", s.ReplicaOfHost, s.ReplicaOfPort))
 	if masterConn != nil {
 		fmt.Printf("Connected to master on %s:%s\n", s.ReplicaOfHost, s.ReplicaOfPort)
@@ -23,7 +23,7 @@ func handleHandShake(s *config.Server) {
 	}
 
 	// sending ping to master
-	_, err = masterConn.Write([]byte(GenBulkArray([]string{"PING"})))
+	_, err = masterConn.Write([]byte(parser.SerializeArray([]string{"PING"})))
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -60,6 +60,7 @@ func handleHandShake(s *config.Server) {
 		return
 	}
 
+	// reading from the master
 	reader := bufio.NewReader(masterConn)
 	for {
 		message, err := parser.Deserialize(reader)
@@ -87,5 +88,44 @@ func handleHandShake(s *config.Server) {
 		}
 
 		command.Handler(message.Commands, masterConn, s)
+	}
+}
+
+func PropagateSetToReplica(args []string, s *config.Server) {
+
+	args = append([]string{"set"}, args...)
+
+	setCommands := parser.SerializeArray(args)
+
+	s.ReplicaMutex.Lock()
+	defer s.ReplicaMutex.Unlock()
+
+	// Track the number of successful writes
+	successfulWrites := 0
+
+	for {
+		replicaConn, err := s.ConnectedReplicas.Get() // Get a connection from the pool
+		if err != nil {
+			fmt.Println("Error getting connection from pool:", err)
+			break // Break loop if there are no available connections
+		}
+
+		_, err = replicaConn.Write(setCommands)
+		if err != nil {
+			fmt.Println("Error writing to replica:", err)
+			s.ConnectedReplicas.Put(replicaConn) // Return the connection to the pool
+			break
+		}
+
+		// Increment successful writes
+		successfulWrites++
+
+		// Return the connection to the pool
+		s.ConnectedReplicas.Put(replicaConn)
+
+		// Check if all replicas received the command
+		if successfulWrites == len(s.ConnectedReplicas.Replicas) {
+			break
+		}
 	}
 }

@@ -9,6 +9,8 @@ import (
 	"github.com/codecrafters-io/redis-starter-go/internal/command"
 	"github.com/codecrafters-io/redis-starter-go/internal/config"
 	"github.com/codecrafters-io/redis-starter-go/internal/parser"
+	"github.com/codecrafters-io/redis-starter-go/internal/replication"
+
 )
 
 func main() {
@@ -53,7 +55,7 @@ func Run(port string, s *config.Server) {
 	}
 
 	if s.Role == config.SlaveRole {
-		go handleHandShake(s)
+		go replication.HandleHandShake(s)
 	}
 
 	for {
