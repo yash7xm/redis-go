@@ -69,9 +69,14 @@ func (s *Server) HandleInfoCommand(conn net.Conn) {
 	}
 }
 
-func HandleReplconfCommand(conn net.Conn) {
-	output := GenSimpleString("OK")
-	conn.Write([]byte(output))
+func HandleReplconfCommand(conn net.Conn, args []Value) {
+	fmt.Println(args)
+	if strings.ToLower(string(args[0].String())) == "getback" {
+		conn.Write([]byte("*3\r\n$8\r\nREPLCONF\r\n$3\r\nACK\r\n$1\r\n0\r\n"))
+	} else {
+		output := GenSimpleString("OK")
+		conn.Write([]byte(output))
+	}
 }
 
 func (s *Server) HandlePsyncCommand(conn net.Conn) {
@@ -86,12 +91,12 @@ func (s *Server) HandlePsyncCommand(conn net.Conn) {
 
 	conn.Write([]byte(output))
 
-	time.Sleep(200 * time.Millisecond)
+	time.Sleep(500 * time.Millisecond)
 
-	sendRdbContent(conn)
+	s.sendRdbContent(conn)
 }
 
-func sendRdbContent(conn net.Conn) {
+func (s *Server) sendRdbContent(conn net.Conn) {
 	emptyRDBFileBase64 := "UkVESVMwMDEx+glyZWRpcy12ZXIFNy4yLjD6CnJlZGlzLWJpdHPAQPoFY3RpbWXCbQi8ZfoIdXNlZC1tZW3CsMQQAPoIYW9mLWJhc2XAAP/wbjv+wP9aog=="
 	decodedBytes, err := base64.StdEncoding.DecodeString(emptyRDBFileBase64)
 
@@ -133,7 +138,7 @@ func (s *Server) propagateSetToReplica(args []Value) {
 		if err != nil {
 			fmt.Println("Error writing to replica:", err)
 			s.connectedReplicas.Put(replicaConn) // Return the connection to the pool
-			break                             
+			break
 		}
 
 		// Increment successful writes
@@ -149,9 +154,13 @@ func (s *Server) propagateSetToReplica(args []Value) {
 	}
 }
 
+func (s *Server) HandleFullResync(conn net.Conn) {
+	conn.Write([]byte("+OK\r\n"))
+}
+
 func (s *Server) HandleCommands(value Value, conn net.Conn) {
 	if len(value.Array()) == 0 {
-		return 
+		return
 	}
 	command := strings.ToLower(value.Array()[0].String())
 	args := value.Array()[1:]
@@ -168,9 +177,11 @@ func (s *Server) HandleCommands(value Value, conn net.Conn) {
 	case "info":
 		s.HandleInfoCommand(conn)
 	case "replconf":
-		HandleReplconfCommand(conn)
+		HandleReplconfCommand(conn, args)
 	case "psync":
 		s.HandlePsyncCommand(conn)
+	case "fullresync":
+		s.HandleFullResync(conn)
 	default:
 		conn.Write([]byte("-ERR unknown command '" + command + "'\r\n"))
 	}

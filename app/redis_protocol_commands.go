@@ -6,6 +6,7 @@ import (
 	"strings"
 )
 
+
 func GenSimpleString(data string) string {
 	return fmt.Sprintf("+%s\r\n", data)
 }

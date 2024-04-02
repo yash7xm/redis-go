@@ -22,6 +22,7 @@ type Server struct {
 	replicaOfPort     string
 	connectedReplicas ConnectionPool
 	replicaMutex      sync.Mutex
+	masterConn        net.Conn
 }
 
 func main() {
@@ -82,9 +83,10 @@ func (s *Server) Run(port string) {
 	if s.role == SlaveRole {
 		var wg sync.WaitGroup
 		wg.Add(1)
-		masterConn := s.handleHandShake(&wg)
+		s.handleHandShake(&wg)
 		wg.Wait()
-		go s.handleConnection(*masterConn)
+		fmt.Println("I went ahead hurray")
+		go s.handleConnection(s.masterConn)
 	}
 
 	for {
