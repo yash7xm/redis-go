@@ -1,5 +1,12 @@
 package config
 
+import (
+	"net"
+	"sync"
+
+	"github.com/codecrafters-io/redis-starter-go/internal/utils"
+)
+
 const (
 	MasterRole Role = "master"
 	SlaveRole  Role = "slave"
@@ -12,7 +19,7 @@ type Server struct {
 	role              Role
 	replicaOfHost     string
 	replicaOfPort     string
-	connectedReplicas ConnectionPool
+	connectedReplicas utils.ConnectionPool
 	replicaMutex      sync.Mutex
 	masterConn        net.Conn
 }
@@ -25,7 +32,7 @@ func NewServer(role Role, replicaOfHost string, replicaOfPort string) *Server {
 		role:              role,
 		replicaOfHost:     replicaOfHost,
 		replicaOfPort:     replicaOfPort,
-		connectedReplicas: ConnectionPool{},
+		connectedReplicas: utils.ConnectionPool{},
 		replicaMutex:      sync.Mutex{},
 	}
 }
