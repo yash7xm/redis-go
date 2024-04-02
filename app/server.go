@@ -6,6 +6,8 @@ import (
 	"net"
 	"os"
 	"sync"
+	
+	"github.com/codecrafters-io/redis-starter-go/internal/parser"
 )
 
 const (
@@ -106,15 +108,19 @@ func (s *Server) Run(port string) {
 func (s *Server) handleConnection(conn net.Conn) {
 	reader := bufio.NewReader(conn)
 	for {
-		value, err := DecodeRESP(reader)
-
-		fmt.Println("Decoded Value is:- ", value.Array())
+		message, err := parser.Deserialize(reader)
 
 		if err != nil {
 			fmt.Println("Error decoding RESP: ", err.Error())
 			return
 		}
 
-		s.HandleCommands(value, conn)
+		fmt.Println("Commands: ", message.Commands)
+
+		if len(message.Commands) == 0 {
+			continue
+		}
+
+		// s.HandleCommands(message.Commands, conn)
 	}
 }
