@@ -7,13 +7,15 @@ import (
 	"os"
 	"strings"
 
+	"github.com/codecrafters-io/redis-starter-go/internal/command"
+	"github.com/codecrafters-io/redis-starter-go/internal/config"
 	"github.com/codecrafters-io/redis-starter-go/internal/parser"
 )
 
-func (s *Server) handleHandShake() {
-	masterConn, err := net.Dial("tcp", fmt.Sprintf("%s:%s", s.replicaOfHost, s.replicaOfPort))
+func handleHandShake(s *config.Server) {
+	masterConn, err := net.Dial("tcp", fmt.Sprintf("%s:%s", s.ReplicaOfHost, s.ReplicaOfPort))
 	if masterConn != nil {
-		fmt.Printf("Connected to master on %s:%s\n", s.replicaOfHost, s.replicaOfPort)
+		fmt.Printf("Connected to master on %s:%s\n", s.ReplicaOfHost, s.ReplicaOfPort)
 	}
 	if err != nil {
 		fmt.Println("Failed to bind to port 6379")
@@ -84,8 +86,6 @@ func (s *Server) handleHandShake() {
 			continue
 		}
 
-		s.HandleCommands(message.Commands, masterConn)
+		command.Handler(message.Commands, masterConn, s)
 	}
-
-	s.masterConn = masterConn
 }

@@ -11,9 +11,10 @@ import (
 	"time"
 
 	"github.com/codecrafters-io/redis-starter-go/internal/parser"
+	"github.com/codecrafters-io/redis-starter-go/internal/config"
 )
 
-func (s *Server) HandlePingCommand(conn net.Conn) {
+func HandlePingCommand(conn net.Conn) {
 	output := parser.SerializeSimpleString("PONG")
 	conn.Write([]byte(output))
 }
@@ -23,7 +24,7 @@ func HandleEchoCommand(conn net.Conn, value string) {
 	conn.Write([]byte(output))
 }
 
-func (s *Server) HandleSetCommand(conn net.Conn, args []string) {
+func HandleSetCommand(conn net.Conn, args []string) {
 	if len(args) > 2 {
 		if args[2] == "px" {
 			expiryStr := args[3]
@@ -164,7 +165,7 @@ func HandleFullResync(conn net.Conn) {
 	conn.Write([]byte("+OK\r\n"))
 }
 
-func Handler(value []string, conn net.Conn, s *Server) {
+func Handler(value []string, conn net.Conn, s *config.Server) {
 	command := strings.ToLower(value[0])
 	args := value[1:]
 

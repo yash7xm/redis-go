@@ -5,13 +5,11 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"sync"
 
-	"github.com/codecrafters-io/redis-starter-go/internal/parser"
 	"github.com/codecrafters-io/redis-starter-go/internal/command"
+	"github.com/codecrafters-io/redis-starter-go/internal/config"
+	"github.com/codecrafters-io/redis-starter-go/internal/parser"
 )
-
-
 
 func main() {
 	args := os.Args[1:]
@@ -34,21 +32,19 @@ func main() {
 		}
 	}
 
-	role := MasterRole
+	role := config.MasterRole
 
 	if replicaOfHost != "" {
-		role = SlaveRole
+		role = config.SlaveRole
 	}
 
-	srv := NewServer(role, replicaOfHost, replicaOfPort)
-	srv.Run(port)
-
+	srv := config.NewServer(role, replicaOfHost, replicaOfPort)
+	Run(port, srv)
 }
-
 
 var noOfClients int
 
-func (s *Server) Run(port string) {
+func Run(port string, s *config.Server) {
 	listener, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%s", port))
 	fmt.Printf("Server started on %s\n", port)
 	if err != nil {
@@ -56,8 +52,8 @@ func (s *Server) Run(port string) {
 		os.Exit(1)
 	}
 
-	if s.role == SlaveRole {
-		go s.handleHandShake()
+	if s.Role == config.SlaveRole {
+		go handleHandShake(s)
 	}
 
 	for {
@@ -70,11 +66,11 @@ func (s *Server) Run(port string) {
 			os.Exit(1)
 		}
 
-		go s.handleConnection(conn)
+		go handleConnection(conn, s)
 	}
 }
 
-func (s *Server) handleConnection(conn net.Conn) {
+func handleConnection(conn net.Conn, s *config.Server) {
 	reader := bufio.NewReader(conn)
 	for {
 		message, err := parser.Deserialize(reader)

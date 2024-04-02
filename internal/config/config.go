@@ -1,9 +1,9 @@
 package config
 
 import (
-	"net"
 	"sync"
 
+	"github.com/codecrafters-io/redis-starter-go/internal/store"
 	"github.com/codecrafters-io/redis-starter-go/internal/utils"
 )
 
@@ -15,24 +15,23 @@ const (
 type Role string
 
 type Server struct {
-	storage           *Storage
-	role              Role
-	replicaOfHost     string
-	replicaOfPort     string
-	connectedReplicas utils.ConnectionPool
-	replicaMutex      sync.Mutex
-	masterConn        net.Conn
+	Storage           *store.Storage
+	Role              Role
+	ReplicaOfHost     string
+	ReplicaOfPort     string
+	ConnectedReplicas utils.ConnectionPool
+	ReplicaMutex      sync.Mutex
 }
 
 func NewServer(role Role, replicaOfHost string, replicaOfPort string) *Server {
-	servStorage := NewStorage()
+	servStorage := store.NewStorage()
 
 	return &Server{
-		storage:           servStorage,
-		role:              role,
-		replicaOfHost:     replicaOfHost,
-		replicaOfPort:     replicaOfPort,
-		connectedReplicas: utils.ConnectionPool{},
-		replicaMutex:      sync.Mutex{},
+		Storage:           servStorage,
+		Role:              role,
+		ReplicaOfHost:     replicaOfHost,
+		ReplicaOfPort:     replicaOfPort,
+		ConnectedReplicas: utils.ConnectionPool{},
+		ReplicaMutex:      sync.Mutex{},
 	}
 }
