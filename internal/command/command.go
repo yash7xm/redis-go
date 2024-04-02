@@ -1,8 +1,6 @@
 package command
 
 import (
-	"bufio"
-	"bytes"
 	"encoding/base64"
 	"fmt"
 	"net"
@@ -119,14 +117,10 @@ func sendRdbContent(conn net.Conn) {
 }
 
 func propagateSetToReplica(args []string, s *config.Server) {
-	// command := SerializeArray(
-	// 	SerializeBulkString("set"),
-	// 	SerializeBulkString(args[0]),
-	// 	SerializeBulkString(args[1]),
-	// )
+
+	args = append([]string{"set"}, args...)
 
 	setCommands := parser.SerializeArray(args)
-	m, _ := parser.Deserialize(bufio.NewReader(bytes.NewReader(setCommands)))
 
 	s.ReplicaMutex.Lock()
 	defer s.ReplicaMutex.Unlock()
@@ -141,7 +135,7 @@ func propagateSetToReplica(args []string, s *config.Server) {
 			break // Break loop if there are no available connections
 		}
 
-		_, err = replicaConn.Write([]byte(m.Commands[0]))
+		_, err = replicaConn.Write(setCommands)
 		if err != nil {
 			fmt.Println("Error writing to replica:", err)
 			s.ConnectedReplicas.Put(replicaConn) // Return the connection to the pool
