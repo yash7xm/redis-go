@@ -6,26 +6,12 @@ import (
 	"net"
 	"os"
 	"sync"
-	
+
 	"github.com/codecrafters-io/redis-starter-go/internal/parser"
+	"github.com/codecrafters-io/redis-starter-go/internal/command"
 )
 
-const (
-	MasterRole Role = "master"
-	SlaveRole  Role = "slave"
-)
 
-type Role string
-
-type Server struct {
-	storage           *Storage
-	role              Role
-	replicaOfHost     string
-	replicaOfPort     string
-	connectedReplicas ConnectionPool
-	replicaMutex      sync.Mutex
-	masterConn        net.Conn
-}
 
 func main() {
 	args := os.Args[1:]
@@ -59,18 +45,6 @@ func main() {
 
 }
 
-func NewServer(role Role, replicaOfHost string, replicaOfPort string) *Server {
-	servStorage := NewStorage()
-
-	return &Server{
-		storage:           servStorage,
-		role:              role,
-		replicaOfHost:     replicaOfHost,
-		replicaOfPort:     replicaOfPort,
-		connectedReplicas: ConnectionPool{},
-		replicaMutex:      sync.Mutex{},
-	}
-}
 
 var noOfClients int
 
@@ -116,6 +90,6 @@ func (s *Server) handleConnection(conn net.Conn) {
 			continue
 		}
 
-		s.HandleCommands(message.Commands, conn)
+		command.Handler(message.Commands, conn, s)
 	}
 }
