@@ -68,6 +68,12 @@ func handleHandShake(s *config.Server) {
 			return
 		}
 
+		fmt.Println("Commands: ", message.Commands)
+
+		if len(message.Commands) == 0 {
+			continue
+		}
+
 		if strings.ToUpper(message.Commands[0]) == "FULLRESYNC" {
 			fmt.Println("Recieved PSYNC response from master")
 
@@ -77,12 +83,6 @@ func handleHandShake(s *config.Server) {
 				break
 			}
 			fmt.Println("RDB file received")
-			continue
-		}
-
-		fmt.Println("Commands: ", message.Commands)
-
-		if len(message.Commands) == 0 {
 			continue
 		}
 

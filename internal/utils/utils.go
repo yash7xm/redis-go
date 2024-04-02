@@ -1,37 +1,37 @@
 package utils
 
 import (
-	"errors"
-	"net"
-	"sync"
+    "errors"
+    "net"
+    "sync"
 )
 
 type ConnectionPool struct {
-	replicas []net.Conn
-	mutex    sync.Mutex
+    Replicas []net.Conn
+    Mutex    sync.Mutex 
 }
 
 func (cp *ConnectionPool) Add(conn net.Conn) {
-	cp.mutex.Lock()
-	defer cp.mutex.Unlock()
-	cp.replicas = append(cp.replicas, conn)
+    cp.Mutex.Lock() 
+    defer cp.Mutex.Unlock() 
+    cp.Replicas = append(cp.Replicas, conn) 
 }
 
 // Function to get a connection from the pool
 func (cp *ConnectionPool) Get() (net.Conn, error) {
-	cp.mutex.Lock()
-	defer cp.mutex.Unlock()
-	if len(cp.replicas) == 0 {
-		return nil, errors.New("connection pool is empty")
-	}
-	conn := cp.replicas[0]
-	cp.replicas = cp.replicas[1:]
-	return conn, nil
+    cp.Mutex.Lock() 
+    defer cp.Mutex.Unlock() 
+    if len(cp.Replicas) == 0 { 
+        return nil, errors.New("connection pool is empty")
+    }
+    conn := cp.Replicas[0] 
+    cp.Replicas = cp.Replicas[1:]
+    return conn, nil
 }
 
 // Function to return a connection to the pool
 func (cp *ConnectionPool) Put(conn net.Conn) {
-	cp.mutex.Lock()
-	defer cp.mutex.Unlock()
-	cp.replicas = append(cp.replicas, conn)
+    cp.Mutex.Lock() 
+    defer cp.Mutex.Unlock()
+    cp.Replicas = append(cp.Replicas, conn) 
 }

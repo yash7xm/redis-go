@@ -114,6 +114,10 @@ func SerializeSimpleError(input string) []byte {
 	return []byte(fmt.Sprintf("-%s\r\n", input))
 }
 
+func SerializeRDBFileContent(message []byte) []byte {
+	return []byte(fmt.Sprintf("$%s\r\n%s", strconv.Itoa(len(message)), message))
+}
+
 // format - *<number of elements>\r\n<elements>\r\n
 func parseArray(byteStream *bufio.Reader) ([]string, int, error) {
 	var bytesRead int

@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/codecrafters-io/redis-starter-go/internal/parser"
 	"github.com/codecrafters-io/redis-starter-go/internal/config"
+	"github.com/codecrafters-io/redis-starter-go/internal/parser"
 )
 
 func HandlePingCommand(conn net.Conn) {
@@ -20,11 +20,11 @@ func HandlePingCommand(conn net.Conn) {
 }
 
 func HandleEchoCommand(conn net.Conn, value string) {
-	output := GenBulkString(value)
+	output := parser.SerializeBulkString(value)
 	conn.Write([]byte(output))
 }
 
-func HandleSetCommand(conn net.Conn, args []string) {
+func HandleSetCommand(conn net.Conn, args []string, s *config.Server) {
 	if len(args) > 2 {
 		if args[2] == "px" {
 			expiryStr := args[3]
@@ -34,40 +34,40 @@ func HandleSetCommand(conn net.Conn, args []string) {
 				return
 			}
 
-			s.storage.SetWithExpiry(args[0], args[1], time.Duration(expiryInMilliSecond)*time.Millisecond)
+			s.Storage.SetWithExpiry(args[0], args[1], time.Duration(expiryInMilliSecond)*time.Millisecond)
 		}
 	} else {
-		s.storage.Set(args[0], args[1])
+		s.Storage.Set(args[0], args[1])
 	}
 
-	if s.role == MasterRole {
-		s.propagateSetToReplica(args)
+	if s.Role == config.MasterRole {
+		propagateSetToReplica(args, s)
 	}
 
-	if s.role == MasterRole {
+	if s.Role == config.MasterRole {
 		conn.Write([]byte("+OK\r\n"))
 	}
 }
 
-func (s *Server) HandleGetCommand(conn net.Conn, key string) {
-	value, found := s.storage.Get(key)
+func HandleGetCommand(conn net.Conn, key string, s *config.Server) {
+	value, found := s.Storage.Get(key)
 	if found {
-		output := GenBulkString(value)
+		output := parser.SerializeBulkString(value)
 		conn.Write([]byte(output))
 	} else {
 		conn.Write([]byte("$-1\r\n"))
 	}
 }
 
-func (s *Server) HandleInfoCommand(conn net.Conn) {
-	role := s.role
+func HandleInfoCommand(conn net.Conn, s *config.Server) {
+	role := s.Role
 	if role == "slave" {
-		output := GenSimpleString("role:slave")
+		output := parser.SerializeSimpleString("role:slave")
 		conn.Write([]byte(output))
 	} else if role == "master" {
 		replId := "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb"
 		replOffset := 0
-		output := GenBulkString(fmt.Sprintf("role:%s\r\nmaster_replid:%s\r\nmaster_repl_offset:%d",
+		output := parser.SerializeBulkString(fmt.Sprintf("role:%s\r\nmaster_replid:%s\r\nmaster_repl_offset:%d",
 			role, replId, replOffset))
 
 		conn.Write([]byte(output))
@@ -78,29 +78,29 @@ func HandleReplconfCommand(conn net.Conn, args []string) {
 	if strings.ToLower(string(args[0])) == "getack" {
 		conn.Write([]byte("*3\r\n$8\r\nREPLCONF\r\n$3\r\nACK\r\n$1\r\n0\r\n"))
 	} else {
-		output := GenSimpleString("OK")
+		output := parser.SerializeSimpleString("OK")
 		conn.Write([]byte(output))
 	}
 }
 
-func (s *Server) HandlePsyncCommand(conn net.Conn) {
+func HandlePsyncCommand(conn net.Conn, s *config.Server) {
 	replId := "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb"
 	replOffset := 0
 
 	output := fmt.Sprintf("+FULLRESYNC %s %d\r\n", replId, replOffset)
 
-	s.replicaMutex.Lock()
-	s.connectedReplicas.Add(conn) // Add the replica's connection to the pool
-	s.replicaMutex.Unlock()
+	s.ReplicaMutex.Lock()
+	s.ConnectedReplicas.Add(conn) // Add the replica's connection to the pool
+	s.ReplicaMutex.Unlock()
 
 	conn.Write([]byte(output))
 
 	time.Sleep(500 * time.Millisecond)
 
-	s.sendRdbContent(conn)
+	sendRdbContent(conn)
 }
 
-func (s *Server) sendRdbContent(conn net.Conn) {
+func sendRdbContent(conn net.Conn) {
 	emptyRDBFileBase64 := "UkVESVMwMDEx+glyZWRpcy12ZXIFNy4yLjD6CnJlZGlzLWJpdHPAQPoFY3RpbWXCbQi8ZfoIdXNlZC1tZW3CsMQQAPoIYW9mLWJhc2XAAP/wbjv+wP9aog=="
 	decodedBytes, err := base64.StdEncoding.DecodeString(emptyRDBFileBase64)
 
@@ -109,7 +109,7 @@ func (s *Server) sendRdbContent(conn net.Conn) {
 		return
 	}
 
-	output := RDBFileContent(decodedBytes)
+	output := parser.SerializeRDBFileContent(decodedBytes)
 	_, err = conn.Write(output)
 
 	if err != nil {
@@ -118,7 +118,7 @@ func (s *Server) sendRdbContent(conn net.Conn) {
 	}
 }
 
-func propagateSetToReplica(args []string, s *Server) {
+func propagateSetToReplica(args []string, s *config.Server) {
 	// command := SerializeArray(
 	// 	SerializeBulkString("set"),
 	// 	SerializeBulkString(args[0]),
@@ -126,25 +126,25 @@ func propagateSetToReplica(args []string, s *Server) {
 	// )
 
 	setCommands := parser.SerializeArray(args)
-	m, err := parser.Deserialize(bufio.NewReader(bytes.NewReader(setCommands)))
+	m, _ := parser.Deserialize(bufio.NewReader(bytes.NewReader(setCommands)))
 
-	s.replicaMutex.Lock()
-	defer s.replicaMutex.Unlock()
+	s.ReplicaMutex.Lock()
+	defer s.ReplicaMutex.Unlock()
 
 	// Track the number of successful writes
 	successfulWrites := 0
 
 	for {
-		replicaConn, err := s.connectedReplicas.Get() // Get a connection from the pool
+		replicaConn, err := s.ConnectedReplicas.Get() // Get a connection from the pool
 		if err != nil {
 			fmt.Println("Error getting connection from pool:", err)
 			break // Break loop if there are no available connections
 		}
 
-		_, err = replicaConn.Write([]byte(command))
+		_, err = replicaConn.Write([]byte(m.Commands[0]))
 		if err != nil {
 			fmt.Println("Error writing to replica:", err)
-			s.connectedReplicas.Put(replicaConn) // Return the connection to the pool
+			s.ConnectedReplicas.Put(replicaConn) // Return the connection to the pool
 			break
 		}
 
@@ -152,10 +152,10 @@ func propagateSetToReplica(args []string, s *Server) {
 		successfulWrites++
 
 		// Return the connection to the pool
-		s.connectedReplicas.Put(replicaConn)
+		s.ConnectedReplicas.Put(replicaConn)
 
 		// Check if all replicas received the command
-		if successfulWrites == len(s.connectedReplicas.replicas) {
+		if successfulWrites == len(s.ConnectedReplicas.Replicas) {
 			break
 		}
 	}
@@ -175,15 +175,15 @@ func Handler(value []string, conn net.Conn, s *config.Server) {
 	case "echo":
 		HandleEchoCommand(conn, args[0])
 	case "set":
-		HandleSetCommand(conn, args)
+		HandleSetCommand(conn, args, s)
 	case "get":
-		HandleGetCommand(conn, args[0])
+		HandleGetCommand(conn, args[0], s)
 	case "info":
-		HandleInfoCommand(conn)
+		HandleInfoCommand(conn, s)
 	case "replconf":
 		HandleReplconfCommand(conn, args)
 	case "psync":
-		HandlePsyncCommand(conn)
+		HandlePsyncCommand(conn, s)
 	case "fullresync":
 		HandleFullResync(conn)
 	default:
