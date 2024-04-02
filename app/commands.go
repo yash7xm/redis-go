@@ -19,20 +19,20 @@ func HandleEchoCommand(conn net.Conn, value string) {
 	conn.Write([]byte(output))
 }
 
-func (s *Server) HandleSetCommand(conn net.Conn, args []Value) {
+func (s *Server) HandleSetCommand(conn net.Conn, args []string) {
 	if len(args) > 2 {
-		if args[2].String() == "px" {
-			expiryStr := args[3].String()
+		if args[2] == "px" {
+			expiryStr := args[3]
 			expiryInMilliSecond, err := strconv.Atoi(expiryStr)
 			if err != nil {
 				conn.Write([]byte(fmt.Sprintf("-ERR PX value (%s) is not an integer\r\n", expiryStr)))
 				return
 			}
 
-			s.storage.SetWithExpiry(args[0].String(), args[1].String(), time.Duration(expiryInMilliSecond)*time.Millisecond)
+			s.storage.SetWithExpiry(args[0], args[1], time.Duration(expiryInMilliSecond)*time.Millisecond)
 		}
 	} else {
-		s.storage.Set(args[0].String(), args[1].String())
+		s.storage.Set(args[0], args[1])
 	}
 
 	if s.role == MasterRole {
@@ -69,9 +69,8 @@ func (s *Server) HandleInfoCommand(conn net.Conn) {
 	}
 }
 
-func HandleReplconfCommand(conn net.Conn, args []Value) {
-	fmt.Println(args)
-	if strings.ToLower(string(args[0].String())) == "getback" {
+func HandleReplconfCommand(conn net.Conn, args []string) {
+	if strings.ToLower(string(args[0])) == "getack" {
 		conn.Write([]byte("*3\r\n$8\r\nREPLCONF\r\n$3\r\nACK\r\n$1\r\n0\r\n"))
 	} else {
 		output := GenSimpleString("OK")
@@ -114,11 +113,11 @@ func (s *Server) sendRdbContent(conn net.Conn) {
 	}
 }
 
-func (s *Server) propagateSetToReplica(args []Value) {
+func (s *Server) propagateSetToReplica(args []string) {
 	command := SerializeArray(
 		SerializeBulkString("set"),
-		SerializeBulkString(args[0].String()),
-		SerializeBulkString(args[1].String()),
+		SerializeBulkString(args[0]),
+		SerializeBulkString(args[1]),
 	)
 
 	s.replicaMutex.Lock()
@@ -158,22 +157,19 @@ func (s *Server) HandleFullResync(conn net.Conn) {
 	conn.Write([]byte("+OK\r\n"))
 }
 
-func (s *Server) HandleCommands(value Value, conn net.Conn) {
-	if len(value.Array()) == 0 {
-		return
-	}
-	command := strings.ToLower(value.Array()[0].String())
-	args := value.Array()[1:]
+func (s *Server) HandleCommands(value []string, conn net.Conn) {
+	command := strings.ToLower(value[0])
+	args := value[1:]
 
 	switch command {
 	case "ping":
 		s.HandlePingCommand(conn)
 	case "echo":
-		HandleEchoCommand(conn, args[0].String())
+		HandleEchoCommand(conn, args[0])
 	case "set":
 		s.HandleSetCommand(conn, args)
 	case "get":
-		s.HandleGetCommand(conn, args[0].String())
+		s.HandleGetCommand(conn, args[0])
 	case "info":
 		s.HandleInfoCommand(conn)
 	case "replconf":

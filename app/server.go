@@ -83,12 +83,7 @@ func (s *Server) Run(port string) {
 	}
 
 	if s.role == SlaveRole {
-		var wg sync.WaitGroup
-		wg.Add(1)
-		s.handleHandShake(&wg)
-		wg.Wait()
-		fmt.Println("I went ahead hurray")
-		go s.handleConnection(s.masterConn)
+		go s.handleHandShake()
 	}
 
 	for {
@@ -121,6 +116,6 @@ func (s *Server) handleConnection(conn net.Conn) {
 			continue
 		}
 
-		// s.HandleCommands(message.Commands, conn)
+		s.HandleCommands(message.Commands, conn)
 	}
 }

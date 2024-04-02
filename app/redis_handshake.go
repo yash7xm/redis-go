@@ -1,13 +1,16 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"net"
 	"os"
-	"sync"
+	"strings"
+
+	"github.com/codecrafters-io/redis-starter-go/internal/parser"
 )
 
-func (s *Server) handleHandShake(wg *sync.WaitGroup) {
+func (s *Server) handleHandShake() {
 	masterConn, err := net.Dial("tcp", fmt.Sprintf("%s:%s", s.replicaOfHost, s.replicaOfPort))
 	if masterConn != nil {
 		fmt.Printf("Connected to master on %s:%s\n", s.replicaOfHost, s.replicaOfPort)
@@ -55,15 +58,34 @@ func (s *Server) handleHandShake(wg *sync.WaitGroup) {
 		return
 	}
 
-	n, _ = masterConn.Read(tempResponse)
-	fmt.Println(string(tempResponse[:n]))
+	reader := bufio.NewReader(masterConn)
+	for {
+		message, err := parser.Deserialize(reader)
+		if err != nil {
+			fmt.Println("Error decoding RESP: ", err.Error())
+			return
+		}
 
-	fmt.Println("Recieved psync")
+		if strings.ToUpper(message.Commands[0]) == "FULLRESYNC" {
+			fmt.Println("Recieved PSYNC response from master")
 
-	n, _ = masterConn.Read(tempResponse)
-	fmt.Println(string(tempResponse[:n]))
+			err := parser.ExpectRDBFile(reader)
+			if err != nil {
+				fmt.Println("Error expecting RDB file: ", err.Error())
+				break
+			}
+			fmt.Println("RDB file received")
+			continue
+		}
+
+		fmt.Println("Commands: ", message.Commands)
+
+		if len(message.Commands) == 0 {
+			continue
+		}
+
+		s.HandleCommands(message.Commands, masterConn)
+	}
 
 	s.masterConn = masterConn
-
-	wg.Done()
 }
