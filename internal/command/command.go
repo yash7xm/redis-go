@@ -168,6 +168,10 @@ func HandleFullResync(conn net.Conn) {
 	conn.Write([]byte("+OK\r\n"))
 }
 
+func HandleWait(conn net.Conn) {
+	conn.Write(parser.SerializeInteger(0))
+}
+
 func Handler(value []string, conn net.Conn, s *config.Server) {
 	command := strings.ToLower(value[0])
 	args := value[1:]
@@ -189,6 +193,8 @@ func Handler(value []string, conn net.Conn, s *config.Server) {
 		HandlePsyncCommand(conn, s)
 	case "fullresync":
 		HandleFullResync(conn)
+	case "wait":
+		HandleWait(conn)
 	default:
 		conn.Write([]byte("-ERR unknown command '" + command + "'\r\n"))
 	}
