@@ -83,7 +83,6 @@ func HandleReplconfCommand(conn net.Conn, args []string, s *config.Server) {
 		offset := fmt.Sprintf("%d", s.MasterReplOffset)
 		response := parser.SerializeArray([]string{"REPLCONF", "ACK", offset})
 		conn.Write(response)
-		// conn.Write([]byte("*3\r\n$8\r\nREPLCONF\r\n$3\r\nACK\r\n$1\r\n0\r\n"))
 	} else {
 		output := parser.SerializeSimpleString("OK")
 		conn.Write([]byte(output))
@@ -168,8 +167,70 @@ func HandleFullResync(conn net.Conn) {
 	conn.Write([]byte("+OK\r\n"))
 }
 
-func HandleWait(conn net.Conn, s *config.Server) {
-	conn.Write(parser.SerializeInteger(len(s.ConnectedReplicas.Replicas)))
+func writeGetAckToReplica(count int, s *config.Server, acks chan int) {
+
+	ackCommand := "*3\r\n$8\r\nreplconf\r\n$6\r\ngetack\r\n$1\r\n*\r\n"
+	s.ReplicaMutex.Lock()
+	defer s.ReplicaMutex.Unlock()
+
+	// Track the number of successful writes
+	successfulWrites := 0
+
+	for {
+		replicaConn, err := s.ConnectedReplicas.Get() // Get a connection from the pool
+		if err != nil {
+			fmt.Println("Error getting connection from pool:", err)
+			break // Break loop if there are no available connections
+		}
+
+		_, err = replicaConn.Write([]byte(ackCommand))
+		if err != nil {
+			fmt.Println("Error writing to replica:", err)
+			s.ConnectedReplicas.Put(replicaConn) // Return the connection to the pool
+			break
+		}
+
+		// Increment successful writes
+		successfulWrites++
+
+		// Return the connection to the pool
+		s.ConnectedReplicas.Put(replicaConn)
+
+		// Check if all replicas received the command
+		if successfulWrites == count || successfulWrites == len(s.ConnectedReplicas.Replicas) {
+			break
+		}
+	}
+
+	acks <- successfulWrites
+}
+
+func HandleWait(conn net.Conn, args []string, s *config.Server) {
+
+	replicaCount, err := strconv.Atoi(args[0])
+	if err != nil {
+		fmt.Println("Replica count not provided correctly")
+	}
+
+	timeout, err := strconv.Atoi(args[1])
+	if err != nil {
+		fmt.Println("Timeout not provided correctly")
+	}
+
+	timer := time.NewTimer(time.Duration(timeout) * time.Millisecond)
+
+	var acks chan int
+
+	go writeGetAckToReplica(replicaCount, s, acks)
+
+	for {
+		select {
+		case <-timer.C:
+			conn.Write(parser.SerializeInteger(len(acks)))
+		case <-acks:
+			conn.Write(parser.SerializeInteger(len(acks)))
+		}
+	}
 }
 
 func Handler(value []string, conn net.Conn, s *config.Server) {
@@ -194,7 +255,7 @@ func Handler(value []string, conn net.Conn, s *config.Server) {
 	case "fullresync":
 		HandleFullResync(conn)
 	case "wait":
-		HandleWait(conn, s)
+		HandleWait(conn, args, s)
 	default:
 		conn.Write([]byte("-ERR unknown command '" + command + "'\r\n"))
 	}
